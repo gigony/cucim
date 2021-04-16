@@ -15,9 +15,6 @@
 
 ```
 pip install cucim
-
-# Install dependencies for `cucim.skimage` (assuming that CUDA 11.0 is used for CuPy)
-pip install scipy scikit-image cupy-cuda110==9.0.0b3
 ```
 ### Jupyter Notebooks
 
@@ -88,53 +85,6 @@ region = img.read_region(location=(5000, 5000), size=(512, 512), level=0)
 visualize(region)
 #from PIL import Image
 #Image.fromarray(np.asarray(region))
-```
-
-### Using scikit-image API
-
-Import `cucim.skimage` instead of `skimage`.
-
-```python
-# The following code is modified from https://scikit-image.org/docs/dev/auto_examples/color_exposure/plot_ihc_color_separation.html#sphx-glr-auto-examples-color-exposure-plot-ihc-color-separation-py
-#
-import cupy as cp  # modified from: `import numpy as np`
-import matplotlib.pyplot as plt
-
-# from skimage import data
-from cucim.skimage.color import rgb2hed, hed2rgb  # modified from: `from skimage.color import rgb2hed, hed2rgb`
-
-# Example IHC image
-ihc_rgb = cp.asarray(region)  # modified from: `ihc_rgb = data.immunohistochemistry()`
-
-# Separate the stains from the IHC image
-ihc_hed = rgb2hed(ihc_rgb)
-
-# Create an RGB image for each of the stains
-null = cp.zeros_like(ihc_hed[:, :, 0])  # np -> cp
-ihc_h = hed2rgb(cp.stack((ihc_hed[:, :, 0], null, null), axis=-1))  # np -> cp
-ihc_e = hed2rgb(cp.stack((null, ihc_hed[:, :, 1], null), axis=-1))  # np -> cp
-ihc_d = hed2rgb(cp.stack((null, null, ihc_hed[:, :, 2]), axis=-1))  # np -> cp
-
-# Display
-fig, axes = plt.subplots(2, 2, figsize=(7, 6), sharex=True, sharey=True)
-ax = axes.ravel()
-
-ax[0].imshow(ihc_rgb.get())  # appended `.get()`
-ax[0].set_title("Original image")
-
-ax[1].imshow(ihc_h.get())  # appended `.get()`
-ax[1].set_title("Hematoxylin")
-
-ax[2].imshow(ihc_e.get())  # appended `.get()`
-ax[2].set_title("Eosin")
-
-ax[3].imshow(ihc_d.get())  # appended `.get()`
-ax[3].set_title("DAB")
-
-for a in ax.ravel():
-    a.axis('off')
-
-fig.tight_layout()
 ```
 
 ## Acknowledgments
