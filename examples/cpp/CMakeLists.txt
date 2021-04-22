@@ -39,3 +39,31 @@ target_link_libraries(tiff_image
             ${CUCIM_PACKAGE_NAME}
             deps::fmt
         )
+
+
+################################################################################
+# Add executable: cuda_example
+################################################################################
+
+add_executable(cuda_example cuda_example/main.cpp)
+set_source_files_properties(cuda_example/main.cpp PROPERTIES LANGUAGE CUDA)
+
+set_target_properties(cuda_example
+    PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED YES
+        CXX_EXTENSIONS NO
+        CUDA_STANDARD 17
+        CUDA_STANDARD_REQUIRED YES
+        CUDA_EXTENSIONS NO
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_RUNTIME_LIBRARY Shared
+)
+target_compile_features(cuda_example PRIVATE ${CUCIM_REQUIRED_FEATURES})
+# Use generator expression to avoid `nvcc fatal   : Value '-std=c++17' is not defined for option 'Werror'`
+target_compile_options(cuda_example PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-Werror -Wall -Wextra>)
+target_link_libraries(cuda_example
+        PRIVATE
+            ${CUCIM_PACKAGE_NAME}
+            deps::fmt
+        )

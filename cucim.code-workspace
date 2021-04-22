@@ -164,6 +164,20 @@
 				},
 				"problemMatcher": [],
 				"group": "build",
+			},
+			{
+				"label": "Build cuda_example",
+				"type": "shell",
+				"command": "./run build_local libcucim debug",
+				"options": {
+					"cwd": "${workspaceFolder}"
+				},
+				"presentation": {
+					"reveal": "always",
+					"focus": true
+				},
+				"problemMatcher": [],
+				"group": "build",
 			}
 		]
 	},
@@ -171,6 +185,38 @@
 		"version": "0.2.0",
 		// https://code.visualstudio.com/docs/editor/variables-reference
 		"configurations": [
+			{
+				"name": "(gdb) cuda_example",
+				"type": "cppdbg",
+				"request": "launch",
+				"program": "${workspaceFolder:cucim}/build-debug/bin/cuda_example",
+				// https://github.com/catchorg/Catch2/blob/devel/docs/command-line.md#specifying-which-tests-to-run
+				"args": [
+					"${workspaceFolder:cucim}/notebooks/input/image.tif",
+					"${workspaceFolder:cucim}"
+				],
+				"stopAtEntry": false,
+				"cwd": "${workspaceFolder:cucim}",
+				"environment": [
+					{
+						"name": "LD_LIBRARY_PATH",
+						"value": "${workspaceFolder:cucim}/build-debug/lib:${workspaceFolder:cucim.kit.cuslide}/build-debug/lib:${env:LD_LIBRARY_PATH}"
+					},
+					{
+						"name": "CUCIM_TEST_PLUGIN_PATH",
+						"value": "cucim.kit.cuslide@0.19.0.so"
+					}
+				],
+				"console": "externalTerminal",
+				"MIMode": "gdb",
+				"setupCommands": [
+					{
+						"description": "Enable pretty-printing for gdb",
+						"text": "-enable-pretty-printing",
+						"ignoreFailures": true
+					}
+				]
+			},
 			{
 				"name": "(gdb) cucim_tests",
 				"type": "cppdbg",
