@@ -121,6 +121,8 @@ private:
     std::vector<uint64_t> image_piece_offsets_;
     std::vector<uint64_t> image_piece_bytecounts_;
 
+    uint64_t hash_value_ = 0; /// file hash including ifd index.
+
     /**
      *
      * Note: This method is called by the constructor of IFD and read() method so it is possible that the output of

@@ -17,18 +17,20 @@
 #ifndef CUCIM_CUIMAGE_H
 #define CUCIM_CUIMAGE_H
 
-#include <array>
-#include <memory>
-#include <vector>
-#include <string>
-#include <mutex>
-#include <set>
-
 #include "cucim/core/framework.h"
+
+#include "cucim/cache/image_cache_manager.h"
 #include "cucim/filesystem/file_path.h"
 #include "cucim/io/device.h"
 #include "cucim/io/format/image_format.h"
 #include "cucim/memory/dlpack.h"
+
+#include <array>
+#include <set>
+#include <string>
+#include <memory>
+#include <mutex>
+#include <vector>
 
 namespace cucim
 {
@@ -105,6 +107,7 @@ public:
     }
 
     static Framework* get_framework();
+    static cache::ImageCacheManager& get_cache_manager();
 
     filesystem::Path path() const;
 
@@ -168,6 +171,7 @@ private:
 
 
     static Framework* framework_;
+    static cache::ImageCacheManager cache_manager_;
 
     mutable Mutex mutex_;
     cucim::io::format::IImageFormat* image_formats_ = nullptr;
@@ -179,8 +183,6 @@ private:
     std::set<std::string> associated_images_;
 };
 
-
 } // namespace cucim
-
 
 #endif // CUCIM_CUIMAGE_H

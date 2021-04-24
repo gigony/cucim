@@ -38,7 +38,10 @@ endif()
 add_library(${CUCIM_PACKAGE_NAME}
         src/core/framework.cpp
         include/cucim/cuimage.h
+        include/cucim/cache/image_cache_manager.h
+        include/cucim/cache/image_cache.h
         include/cucim/codec/base64.h
+        include/cucim/codec/hash_function.h
         include/cucim/codec/methods.h
         include/cucim/core/framework.h
         include/cucim/core/plugin.h
@@ -59,6 +62,8 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/3rdparty/dlpack/dlpack.h
         include/cucim/3rdparty/dlpack/dlpackcpp.h
         src/cuimage.cpp
+        src/cache/image_cache_manager.cpp
+        src/cache/image_cache.cpp
         src/codec/base64.cpp
         src/core/cucim_framework.h
         src/core/cucim_framework.cpp
@@ -68,6 +73,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/core/plugin_manager.cpp
         src/core/version.inl
         src/filesystem/cufile_driver.cpp
+        src/filesystem/file_handle.cpp
         src/io/device.cpp
         src/io/format/image_format.cpp
         src/logger/logger.cpp
@@ -127,6 +133,8 @@ target_link_libraries(${CUCIM_PACKAGE_NAME}
         PRIVATE
             deps::abseil
             deps::gds
+            deps::libcuckoo
+            deps::boost-header-only
         )
 
 if (CUCIM_STATIC_GDS)

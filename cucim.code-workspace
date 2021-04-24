@@ -125,11 +125,28 @@
 			"__split_buffer": "cpp",
 			"__tree": "cpp",
 			"queue": "cpp",
-			"stack": "cpp"
+			"stack": "cpp",
+			"*.ipp": "cpp",
+			"hash_map": "cpp",
+			"hash_set": "cpp",
+			"filesystem": "cpp",
+			"__locale": "cpp",
+			"rope": "cpp",
+			"__bit_reference": "cpp",
+			"csetjmp": "cpp",
+			"strstream": "cpp",
+			"source_location": "cpp",
+			"slist": "cpp",
+			"__functional_base": "cpp",
+			"__node_handle": "cpp",
+			"__memory": "cpp"
 		},
 		// https://vector-of-bool.github.io/docs/vscode-cmake-tools/settings.html
 		"cmake.buildTask": true,
-		"cmake.buildDirectory": "${workspaceFolder}/build-debug"
+		"cmake.buildDirectory": "${workspaceFolder}/build-debug",
+		"cmake.preferredGenerators": [
+			"Unix Makefiles"
+		]
 	},
 	"tasks": {
 		"version": "2.0.0",
