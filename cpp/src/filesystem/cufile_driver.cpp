@@ -200,7 +200,14 @@ CuFileDriver::CuFileDriver(int fd, bool no_gds, bool use_mmap, const char* file_
     file_flags_ = flags;
 
     FileHandleType file_type = (flags & O_DIRECT) ? FileHandleType::kPosixODirect : FileHandleType::kPosix;
-    handle_ = CuCIMFileHandle{ fd, nullptr, file_type, const_cast<char*>(file_path_.c_str()), this };
+    handle_ = CuCIMFileHandle{ fd,
+                               nullptr,
+                               file_type,
+                               const_cast<char*>(file_path_.c_str()),
+                               this,
+                               static_cast<uint64_t>(st.st_dev),
+                               static_cast<uint64_t>(st.st_ino),
+                               static_cast<int64_t>(st.st_mtim.tv_nsec) };
 
     CUfileError_t status;
     CUfileDescr_t cf_descr{}; // It is important to set zero!

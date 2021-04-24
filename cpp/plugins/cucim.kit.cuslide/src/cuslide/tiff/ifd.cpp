@@ -24,7 +24,13 @@
 #include <tiffiop.h> // this is not included in the released library
 #include <turbojpeg.h>
 #include <fmt/format.h>
+#include <iostream>
+#include <thread>
+#include <cucim/codec/hash_function.h>
+#include <cucim/logger/timer.h>
+#include <cucim/cuimage.h>
 
+static cucim::cache::ImageCache& g_image_cache = cucim::CuImage::get_cache_manager().get_cache();
 
 namespace cuslide::tiff
 {
@@ -112,6 +118,9 @@ IFD::IFD(TIFF* tiff, uint16_t index, ifd_offset_t offset) : tiff_(tiff), ifd_ind
         image_piece_bytecounts_.insert(
             image_piece_bytecounts_.end(), &td_stripbytecount_p[0], &td_stripbytecount_p[image_piece_count_]);
     }
+
+    // Calculate hash value with IFD idnex
+    hash_value_ = tiff->file_handle_.hash_value ^ cucim::codec::splitmix64(index);
 
     //    TIFFPrintDirectory(tif, stdout, TIFFPRINT_STRIPS);
 }
@@ -409,6 +418,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
     uint8_t* tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
 
     int tiff_file = tiff->file_handle_.fd;
+    uint64_t ifd_hash_value = ifd->hash_value_;
 
 
     //    uint32_t nbytes_offset_sx = offset_sx * samples_per_pixel;
@@ -446,17 +456,41 @@ bool IFD::read_region_tiles(const TIFF* tiff,
 
             uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
             uint32_t dest_pixel_index = dest_pixel_index_x;
+
+            uint8_t* tile_data = tile_raster;
+
             if (tiledata_size > 0)
             {
-                if (compression_method == COMPRESSION_JPEG)
+                // cucim::logger::Timer tt("decode_deflate: {}\n");
+                auto key = std::make_shared<cucim::cache::ImageCacheKey>(ifd_hash_value, index);
+                auto value = g_image_cache.find(key);
+                if (value)
                 {
-                    cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size, jpegtable_data,
-                                                  jpegtable_count, &tile_raster, out_device);
+                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
+                    //           << "found\n";
+                    tile_data = static_cast<uint8_t*>(value->data);
                 }
                 else
                 {
-                    cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_raster,
-                                                     tile_raster_nbytes, out_device);
+                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
+                    //           << "not found\n";
+
+                    // Lifetime of tile_data is same with `value`
+                    // : do not access this data when `value` is not accessible.
+                    tile_data = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+
+                    if (compression_method == COMPRESSION_JPEG)
+                    {
+                        cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                      jpegtable_data, jpegtable_count, &tile_data, out_device);
+                    }
+                    else
+                    {
+                        cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
+                                                         tile_raster_nbytes, out_device);
+                    }
+                    value = std::make_shared<cucim::cache::ImageCacheValue>(tile_data, tile_raster_nbytes);
+                    g_image_cache.insert(key, value);
                 }
 
                 for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
@@ -464,7 +498,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                 {
                     //                printf("[GB] index_y: %d, offset_x: %d   y:%d, %d, %d %d\n", index_y, offset_x,
                     //                ty, dest_pixel_index, nbytes_tile_index, nbytes_tile_pixel_size_x);
-                    memcpy(dest_start_ptr + dest_pixel_index, tile_raster + nbytes_tile_index, nbytes_tile_pixel_size_x);
+                    memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index, nbytes_tile_pixel_size_x);
                 }
             }
             else
@@ -595,6 +629,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
 
 
     int tiff_file = tiff->file_handle_.fd;
+    uint64_t ifd_hash_value = ifd->hash_value_;
 
     uint32_t dest_pixel_step_y = w * samples_per_pixel;
     uint32_t nbytes_tw = tw * samples_per_pixel;
@@ -663,15 +698,38 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     }
                 }
 
-                if (compression_method == COMPRESSION_JPEG)
+                uint8_t* tile_data = tile_raster;
+
+                // cucim::logger::Timer tt("decode_deflate: {}\n");
+                auto key = std::make_shared<cucim::cache::ImageCacheKey>(ifd_hash_value, index);
+                auto value = g_image_cache.find(key);
+                if (value)
                 {
-                    cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size, jpegtable_data,
-                                                  jpegtable_count, &tile_raster, out_device);
+                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
+                    //           << "found\n";
+                    tile_data = static_cast<uint8_t*>(value->data);
                 }
                 else
                 {
-                    cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_raster,
-                                                     tile_raster_nbytes, out_device);
+                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
+                    //           << "not found\n";
+
+                    // Lifetime of tile_data is same with `value`
+                    // : do not access this data when `value` is not accessible.
+                    tile_data = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+
+                    if (compression_method == COMPRESSION_JPEG)
+                    {
+                        cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                      jpegtable_data, jpegtable_count, &tile_data, out_device);
+                    }
+                    else
+                    {
+                        cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
+                                                         tile_raster_nbytes, out_device);
+                    }
+                    value = std::make_shared<cucim::cache::ImageCacheValue>(tile_data, tile_raster_nbytes);
+                    g_image_cache.insert(key, value);
                 }
 
                 if (copy_partial)
@@ -683,7 +741,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                         for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
                              ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                         {
-                            memcpy(dest_start_ptr + dest_pixel_index, tile_raster + nbytes_tile_index,
+                            memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
                                    fixed_nbytes_tile_pixel_size_x);
                             memset(dest_start_ptr + dest_pixel_index + fixed_nbytes_tile_pixel_size_x, background_value,
                                    fill_gap_x);
@@ -694,7 +752,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                         for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
                              ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                         {
-                            memcpy(dest_start_ptr + dest_pixel_index, tile_raster + nbytes_tile_index,
+                            memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
                                    fixed_nbytes_tile_pixel_size_x);
                         }
                     }
@@ -710,8 +768,8 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
                          ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                     {
-                        memcpy(dest_start_ptr + dest_pixel_index, tile_raster + nbytes_tile_index,
-                               nbytes_tile_pixel_size_x);
+                        memcpy(
+                            dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index, nbytes_tile_pixel_size_x);
                     }
                 }
             }
