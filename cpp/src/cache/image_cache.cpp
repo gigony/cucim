@@ -19,15 +19,38 @@
 
 #include "cucim/memory/memory_manager.h"
 
+#include <type_traits>
 #include <boost/interprocess/smart_ptr/shared_ptr.hpp>
 #include <boost/interprocess/allocators/allocator.hpp>
 #include <boost/interprocess/managed_shared_memory.hpp>
 // #include <boost/interprocess/containers/string.hpp>
 #include <libcuckoo/cuckoohash_map.hh>
+#include <fmt/format.h>
 
 
 namespace cucim::cache
 {
+
+template <class P>
+struct null_deleter
+{
+private:
+    P p_;
+
+public:
+    null_deleter(P const& p) : p_(p)
+    {
+    }
+    void operator()(void const*)
+    {
+        p_.reset();
+    }
+
+    P const& get() const
+    {
+        return p_;
+    }
+};
 
 
 struct TempCacheKey
@@ -38,14 +61,127 @@ struct TempCacheKey
 
     uint64_t file_hash = 0; /// st_dev + st_ino + st_mtime + ifd_index
     uint64_t location_hash; ///  tile_index or (x , y)
+
+    static std::shared_ptr<TempCacheKey> create(uint64_t file_hash, uint64_t index, std::shared_ptr<void> seg)
+    {
+        auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
+
+        auto key = boost::interprocess::make_managed_shared_ptr(
+            segment->find_or_construct<TempCacheKey>(boost::interprocess::anonymous_instance)(file_hash, index),
+            *segment);
+
+        return std::shared_ptr<TempCacheKey>(key.get().get(), null_deleter<decltype(key)>(key));
+    }
+};
+
+struct TempCacheValue
+{
+    TempCacheValue(void* data, uint64_t size) : data(data), size(size)
+    {
+    }
+    ~TempCacheValue()
+    {
+        cucim_free(data);
+    }
+
+    static std::shared_ptr<TempCacheValue> create(void* data, uint64_t size, std::shared_ptr<void> seg)
+    {
+        auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
+
+        auto value = boost::interprocess::make_managed_shared_ptr(
+            segment->find_or_construct<TempCacheValue>(boost::interprocess::anonymous_instance)(data, size), *segment);
+
+        return std::shared_ptr<TempCacheValue>(value.get().get(), null_deleter<decltype(value)>(value));
+    }
+
+    operator bool() const
+    {
+        return data != nullptr;
+    }
+
+    void* data = nullptr;
+    uint64_t size = 0;
+};
+
+
+using key_deleter_type = boost::interprocess::shared_ptr<
+    cucim::cache::TempCacheKey,
+    boost::interprocess::allocator<
+        void,
+        boost::interprocess::segment_manager<char,
+                                             boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
+                                             boost::interprocess::iset_index>>,
+    boost::interprocess::deleter<
+        cucim::cache::TempCacheKey,
+        boost::interprocess::segment_manager<char,
+                                             boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
+                                             boost::interprocess::iset_index>>>;
+
+using value_deleter_type = boost::interprocess::shared_ptr<
+    cucim::cache::TempCacheValue,
+    boost::interprocess::allocator<
+        void,
+        boost::interprocess::segment_manager<char,
+                                             boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
+                                             boost::interprocess::iset_index>>,
+    boost::interprocess::deleter<
+        cucim::cache::TempCacheValue,
+        boost::interprocess::segment_manager<char,
+                                             boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
+                                             boost::interprocess::iset_index>>>;
+
+struct TempCacheItemDetail
+{
+    TempCacheItemDetail(key_deleter_type& key, value_deleter_type& value) : key(key), value(value)
+    {
+    }
+    key_deleter_type key;
+    value_deleter_type value;
 };
 
 struct TempCacheItem
 {
+    TempCacheItem(void* item, std::shared_ptr<void> deleter) : item_(item), deleter_(deleter)
+    {
+    }
+
+    const TempCacheKey& key()
+    {
+        TempCacheItemDetail* item = reinterpret_cast<TempCacheItemDetail*>(item_);
+        return *item->key.get();
+    }
+
+    const TempCacheValue& value()
+    {
+        TempCacheItemDetail* item = reinterpret_cast<TempCacheItemDetail*>(item_);
+        return *item->value.get();
+    }
+
+    void* item_;
+    std::shared_ptr<void> deleter_;
+
+    static std::shared_ptr<void> create(std::shared_ptr<TempCacheKey>& key,
+                                        std::shared_ptr<TempCacheValue>& value,
+                                        std::shared_ptr<void> seg)
+    {
+        auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
+        auto key_impl = std::get_deleter<null_deleter<key_deleter_type>>(key)->get();
+        auto value_impl = std::get_deleter<null_deleter<value_deleter_type>>(value)->get();
+
+        auto item = boost::interprocess::make_managed_shared_ptr(
+            segment->find_or_construct<TempCacheItemDetail>(boost::interprocess::anonymous_instance)(key_impl, value_impl),
+            *segment);
+        return std::make_shared<TempCacheItem>(item.get().get(), std::make_shared<null_deleter<decltype(item)>>(item));
+    }
+};
+
+
+struct TempCacheItemInternal
+{
     using ValA = boost::interprocess::managed_shared_ptr<int, boost::interprocess::managed_shared_memory>;
     using ValB = boost::interprocess::managed_shared_ptr<int, boost::interprocess::managed_shared_memory>;
 
-    TempCacheItem(ValA::type& a, ValB::type& b) : a(a), b(b)
+    TempCacheItemInternal(ValA::type& a, ValB::type& b) : a(a), b(b)
     {
     }
     ValA::type a;
@@ -55,8 +191,9 @@ struct TempCacheItem
 
 using MapKey = boost::interprocess::managed_shared_ptr<TempCacheKey, boost::interprocess::managed_shared_memory>;
 
-using MapValue = boost::interprocess::managed_shared_ptr<TempCacheItem, boost::interprocess::managed_shared_memory>;
-// using MapValue = TempCacheItem;
+using MapValue =
+    boost::interprocess::managed_shared_ptr<TempCacheItemInternal, boost::interprocess::managed_shared_memory>;
+// using MapValue = TempCacheItemInternal;
 
 // using MapKey = boost::interprocess::managed_shared_ptr<ImageCacheKey, boost::interprocess::managed_shared_memory>;
 // using MapValue = boost::interprocess::managed_shared_ptr<ImageCacheItem, boost::interprocess::managed_shared_memory>;
@@ -267,35 +404,46 @@ ImageCache::ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_sta
 
     auto tt = boost::interprocess::make_managed_shared_ptr(
         segment->find_or_construct<ImageCacheType2>("cucim-hashmap")(
-            capacity, MapKeyHasher(), MakKeyEqual(), ImageCacheAllocator(segment->get_segment_manager())),
-        *segment);
+            (1U << 16) * 4, MapKeyHasher(), MakKeyEqual(), ImageCacheAllocator(segment->get_segment_manager())),
+        *segment); // capacity
 
     (void)tt;
     tt->reserve((int)1000);
-    // auto item = segment->find_or_construct<TempCacheItem>("cucim-item")(1, 3);
+    // auto item = segment->find_or_construct<TempCacheItemInternal>("cucim-item")(1, 3);
     auto valA = boost::interprocess::make_managed_shared_ptr(
-        segment->find_or_construct<TempCacheItem::ValA::type::element_type>(boost::interprocess::anonymous_instance)(1),
+        segment->find_or_construct<TempCacheItemInternal::ValA::type::element_type>(
+            boost::interprocess::anonymous_instance)(1),
         *segment);
     auto valB = boost::interprocess::make_managed_shared_ptr(
-        segment->find_or_construct<TempCacheItem::ValB::type::element_type>(boost::interprocess::anonymous_instance)(3),
+        segment->find_or_construct<TempCacheItemInternal::ValB::type::element_type>(
+            boost::interprocess::anonymous_instance)(3),
         *segment);
 
     auto item = boost::interprocess::make_managed_shared_ptr(
-        segment->find_or_construct<TempCacheItem>("cucim-item")(valA, valB), *segment);
+        segment->find_or_construct<TempCacheItemInternal>("cucim-item")(valA, valB), *segment);
 
     auto key = boost::interprocess::make_managed_shared_ptr(
         segment->find_or_construct<TempCacheKey>(boost::interprocess::anonymous_instance)(1, 2), *segment);
 
 
-    // segment->find_or_construct<ImageCacheType2>("//TempCacheItem{ 1, 3 };
+    // segment->find_or_construct<ImageCacheType2>("//TempCacheItemInternal{ 1, 3 };
     bool succeed = tt->insert(key, item);
 
+    auto val = tt->find(key);
 
-    // ImageCacheType2* kk = segment->construct<ImageCacheType2>("cucim-hashmap")(
-    //     capacity, MapKeyHasher(), MakKeyEqual(), ImageCacheAllocator(segment->get_segment_manager()));
-    // (void)kk;
-    // auto tt = std::make_shared<ImageCacheType2>(capacity);
-    if (succeed)
+    fmt::print("## {} \n", val->b);
+
+
+            // ImageCacheType2* kk = segment->construct<ImageCacheType2>("cucim-hashmap")(
+            //     capacity, MapKeyHasher(), MakKeyEqual(), ImageCacheAllocator(segment->get_segment_manager()));
+            // (void)kk;
+            // auto tt = std::make_shared<ImageCacheType2>(capacity);
+            // if (succeed)
+            // {
+            //     return;
+            // }
+    int b = key->file_hash;
+    if (b == 0 && succeed)
     {
         return;
     }
