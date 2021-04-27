@@ -462,7 +462,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
             if (tiledata_size > 0)
             {
                 // cucim::logger::Timer tt("decode_deflate: {}\n");
-                auto key = std::make_shared<cucim::cache::ImageCacheKey>(ifd_hash_value, index);
+                auto key = g_image_cache.create_key(ifd_hash_value, index);
                 auto value = g_image_cache.find(key);
                 if (value)
                 {
@@ -472,12 +472,12 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                 }
                 else
                 {
-                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
-                    //           << "not found\n";
-
                     // Lifetime of tile_data is same with `value`
                     // : do not access this data when `value` is not accessible.
                     tile_data = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+
+                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
+                    //           << "not found : " << std::hex << tile_data << "\n";
 
                     if (compression_method == COMPRESSION_JPEG)
                     {
@@ -489,7 +489,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                         cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
                                                          tile_raster_nbytes, out_device);
                     }
-                    value = std::make_shared<cucim::cache::ImageCacheValue>(tile_data, tile_raster_nbytes);
+                    value = g_image_cache.create_value(tile_data, tile_raster_nbytes);
                     g_image_cache.insert(key, value);
                 }
 
@@ -701,7 +701,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                 uint8_t* tile_data = tile_raster;
 
                 // cucim::logger::Timer tt("decode_deflate: {}\n");
-                auto key = std::make_shared<cucim::cache::ImageCacheKey>(ifd_hash_value, index);
+                auto key = g_image_cache.create_key(ifd_hash_value, index);
                 auto value = g_image_cache.find(key);
                 if (value)
                 {
@@ -711,12 +711,12 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                 }
                 else
                 {
-                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
-                    //           << "not found\n";
-
                     // Lifetime of tile_data is same with `value`
                     // : do not access this data when `value` is not accessible.
                     tile_data = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+
+                    // std::cerr << "# " << std::this_thread::get_id() << " " << index << " "
+                    //           << "not found : " << std::hex << tile_data << "\n";
 
                     if (compression_method == COMPRESSION_JPEG)
                     {
@@ -728,7 +728,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                         cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
                                                          tile_raster_nbytes, out_device);
                     }
-                    value = std::make_shared<cucim::cache::ImageCacheValue>(tile_data, tile_raster_nbytes);
+                    value = g_image_cache.create_value(tile_data, tile_raster_nbytes);
                     g_image_cache.insert(key, value);
                 }
 
