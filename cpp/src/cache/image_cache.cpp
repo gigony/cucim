@@ -104,39 +104,28 @@ struct TempCacheValue
 };
 
 
-using key_deleter_type = boost::interprocess::shared_ptr<
-    cucim::cache::TempCacheKey,
+template <class T>
+using deleter_type = boost::interprocess::shared_ptr<
+    T,
     boost::interprocess::allocator<
         void,
         boost::interprocess::segment_manager<char,
                                              boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
                                              boost::interprocess::iset_index>>,
     boost::interprocess::deleter<
-        cucim::cache::TempCacheKey,
+        T,
         boost::interprocess::segment_manager<char,
                                              boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
                                              boost::interprocess::iset_index>>>;
 
-using value_deleter_type = boost::interprocess::shared_ptr<
-    cucim::cache::TempCacheValue,
-    boost::interprocess::allocator<
-        void,
-        boost::interprocess::segment_manager<char,
-                                             boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
-                                             boost::interprocess::iset_index>>,
-    boost::interprocess::deleter<
-        cucim::cache::TempCacheValue,
-        boost::interprocess::segment_manager<char,
-                                             boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
-                                             boost::interprocess::iset_index>>>;
 
 struct TempCacheItemDetail
 {
-    TempCacheItemDetail(key_deleter_type& key, value_deleter_type& value) : key(key), value(value)
+    TempCacheItemDetail(deleter_type<TempCacheKey>& key, deleter_type<TempCacheValue>& value) : key(key), value(value)
     {
     }
-    key_deleter_type key;
-    value_deleter_type value;
+    deleter_type<TempCacheKey> key;
+    deleter_type<TempCacheValue> value;
 };
 
 struct TempCacheItem
@@ -165,8 +154,8 @@ struct TempCacheItem
                                         std::shared_ptr<void> seg)
     {
         auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
-        auto key_impl = std::get_deleter<null_deleter<key_deleter_type>>(key)->get();
-        auto value_impl = std::get_deleter<null_deleter<value_deleter_type>>(value)->get();
+        auto key_impl = std::get_deleter<null_deleter<deleter_type<TempCacheKey>>>(key)->get();
+        auto value_impl = std::get_deleter<null_deleter<deleter_type<TempCacheValue>>>(value)->get();
 
         auto item = boost::interprocess::make_managed_shared_ptr(
             segment->find_or_construct<TempCacheItemDetail>(boost::interprocess::anonymous_instance)(key_impl, value_impl),
