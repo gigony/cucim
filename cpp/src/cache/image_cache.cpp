@@ -72,7 +72,7 @@ ImageCacheKey::ImageCacheKey(uint64_t file_hash, uint64_t index) : file_hash(fil
 
 std::shared_ptr<ImageCacheKey> ImageCacheKey::create(uint64_t file_hash, uint64_t index, std::shared_ptr<void> seg)
 {
-    auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
+    const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
 
     auto key = boost::interprocess::make_managed_shared_ptr(
         segment->find_or_construct<ImageCacheKey>(boost::interprocess::anonymous_instance)(file_hash, index), *segment);
@@ -95,9 +95,9 @@ ImageCacheValue::operator bool() const
     return data != nullptr;
 }
 
-std::shared_ptr<ImageCacheValue> ImageCacheValue::create(void* data, uint64_t size, std::shared_ptr<void> seg)
+std::shared_ptr<ImageCacheValue> ImageCacheValue::create(void* data, uint64_t size, std::shared_ptr<void>& seg)
 {
-    auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
+    const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
 
     auto value = boost::interprocess::make_managed_shared_ptr(
         segment->find_or_construct<ImageCacheValue>(boost::interprocess::anonymous_instance)(data, size), *segment);
@@ -135,10 +135,10 @@ ImageCacheItem::ImageCacheItem(void* item, std::shared_ptr<void> deleter) : item
 }
 
 std::shared_ptr<ImageCacheItem> create_cache_item(std::shared_ptr<ImageCacheKey>& key,
-                                            std::shared_ptr<ImageCacheValue>& value,
-                                            std::shared_ptr<void> seg)
+                                                  std::shared_ptr<ImageCacheValue>& value,
+                                                  const std::shared_ptr<void>& seg)
 {
-    auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
+    const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg);
     auto key_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheKey>>>(key)->get();
     auto value_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheValue>>>(value)->get();
 
@@ -244,7 +244,7 @@ ImageCache::ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_sta
       stat_is_recorded_(record_stat),
       list_(list_capacity_)
 {
-    auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
+    const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
 
     auto hashmap = boost::interprocess::make_managed_shared_ptr(
         segment->find_or_construct<ImageCacheType>("cucim-hashmap")(
@@ -323,8 +323,8 @@ bool ImageCache::insert(std::shared_ptr<ImageCacheKey> key, std::shared_ptr<Imag
     {
         return false;
     }
-    auto segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
-    auto hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
+    const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
+    const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
     while (is_list_full() || is_mem_full())
     {
         remove_front();
@@ -360,7 +360,7 @@ bool ImageCache::is_mem_full() const
 
 void ImageCache::remove_front()
 {
-    auto hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
+    const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
     while (true)
     {
         uint32_t head = list_head_.load(std::memory_order_relaxed);
@@ -437,7 +437,7 @@ uint64_t ImageCache::miss_count() const
 
 void ImageCache::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
 {
-    auto hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
+    const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
 
     if (capacity_ < new_capacity)
     {
@@ -478,7 +478,7 @@ void ImageCache::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
 
 std::shared_ptr<ImageCacheValue> ImageCache::find(const std::shared_ptr<ImageCacheKey>& key)
 {
-    auto hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
+    const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
 
     MapValue::type item;
     auto key_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheKey>>>(key)->get();
@@ -507,7 +507,7 @@ std::shared_ptr<ImageCacheValue> ImageCache::find(const std::shared_ptr<ImageCac
 
 bool ImageCache::erase(const std::shared_ptr<ImageCacheKey>& key)
 {
-    auto hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
+    const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
     auto key_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheKey>>>(key)->get();
     const bool succeed = hashmap->erase(key_impl);
     return succeed;

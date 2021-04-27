@@ -48,7 +48,7 @@ struct EXPORT_VISIBLE ImageCacheValue
     ImageCacheValue(void* data, uint64_t size);
     ~ImageCacheValue();
 
-    static std::shared_ptr<ImageCacheValue> create(void* data, uint64_t size, std::shared_ptr<void> seg);
+    static std::shared_ptr<ImageCacheValue> create(void* data, uint64_t size, std::shared_ptr<void>& seg);
 
     operator bool() const;
 
