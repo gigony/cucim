@@ -25,6 +25,26 @@ if (NOT TARGET deps::libcuckoo)
         message(STATUS "Fetching libcuckoo sources")
         FetchContent_Populate(deps-libcuckoo)
         message(STATUS "Fetching libcuckoo sources - done")
+
+        message(STATUS "Applying patch for libcuckoo")
+        find_package(Git)
+        if(Git_FOUND OR GIT_FOUND)
+            execute_process(
+                COMMAND bash -c "${GIT_EXECUTABLE} reset HEAD --hard && ${GIT_EXECUTABLE} apply ${CMAKE_CURRENT_LIST_DIR}/libcuckoo.patch"
+                WORKING_DIRECTORY "${deps-libcuckoo_SOURCE_DIR}"
+                RESULT_VARIABLE exec_result
+                ERROR_VARIABLE exec_error
+                ERROR_STRIP_TRAILING_WHITESPACE
+                OUTPUT_VARIABLE exec_output
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                )
+            if(exec_result EQUAL 0)
+                message(STATUS "Applying patch for libcuckoo - done")
+            else()
+                message(STATUS "Applying patch for libcuckoo - failed")
+                message(FATAL_ERROR "${exec_output}\n${exec_error}")
+            endif()
+        endif ()
     endif ()
 
     # Create static library
