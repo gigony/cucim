@@ -59,10 +59,6 @@ struct EXPORT_VISIBLE ImageCacheItem
 {
     ImageCacheItem(void* item, std::shared_ptr<void> deleter);
 
-    // static std::shared_ptr<void> ImageCacheItem::create(std::shared_ptr<ImageCacheKey>& key,
-    //                                                     std::shared_ptr<ImageCacheValue>& value,
-    //                                                     std::shared_ptr<void> seg);
-
     ImageCacheKey& key();
     ImageCacheValue& value();
 
@@ -70,53 +66,16 @@ struct EXPORT_VISIBLE ImageCacheItem
     std::shared_ptr<void> deleter_;
 };
 
-} // namespace cucim::cache
-
-
-namespace std
+template <class T>
+struct shared_mem_deleter
 {
-template <>
-struct hash<std::shared_ptr<cucim::cache::ImageCacheKey>>
-{
-    size_t operator()(const cucim::cache::ImageCacheKey& s) const
-    {
-        std::size_t h1 = std::hash<uint64_t>{}(s.file_hash);
-        std::size_t h2 = std::hash<uint64_t>{}(s.location_hash);
-        return h1 ^ (h2 << 1); // or use boost::hash_combine
-    }
-    size_t operator()(cucim::cache::ImageCacheKey* s) const
-    {
-        std::size_t h1 = std::hash<uint64_t>{}(s->file_hash);
-        std::size_t h2 = std::hash<uint64_t>{}(s->location_hash);
-        return h1 ^ (h2 << 1); // or use boost::hash_combine
-    }
+    shared_mem_deleter(void* segment);
+    void operator()(T* p);
+
+private:
+    void* segment_ = nullptr;
 };
 
-
-template <>
-struct equal_to<std::shared_ptr<cucim::cache::ImageCacheKey>>
-{
-    bool operator()(const cucim::cache::ImageCacheKey& lhs, const cucim::cache::ImageCacheKey& rhs) const
-    {
-        return lhs.location_hash == rhs.location_hash && lhs.file_hash == rhs.file_hash;
-    }
-    bool operator()(const std::shared_ptr<cucim::cache::ImageCacheKey>& lhs,
-                    const std::shared_ptr<cucim::cache::ImageCacheKey>& rhs) const
-    {
-        return lhs->location_hash == rhs->location_hash && lhs->file_hash == rhs->file_hash;
-    }
-
-
-    bool operator()(const cucim::cache::ImageCacheKey& lhs, const std::shared_ptr<cucim::cache::ImageCacheKey>& rhs) const
-    {
-        return lhs.location_hash == rhs->location_hash && lhs.file_hash == rhs->file_hash;
-    }
-};
-} // namespace std
-
-
-namespace cucim::cache
-{
 /**
  * @brief Image Cache for loading tiles.
  *
@@ -178,18 +137,19 @@ private:
     std::shared_ptr<void> segment_;
     std::shared_ptr<void> hashmap_;
 
-    uint32_t capacity_ = 0; /// capacity of hashmap
-    uint32_t list_capacity_ = 0; /// capacity of list
-    std::atomic<uint64_t> size_nbytes_ = 0; /// size of cache memory used
-    uint64_t capacity_nbytes_ = 0; /// size of cache memory allocated
+    std::unique_ptr<uint32_t, shared_mem_deleter<uint32_t>> capacity_; /// capacity of hashmap
+    std::unique_ptr<uint32_t, shared_mem_deleter<uint32_t>> list_capacity_; /// capacity of list
+    std::unique_ptr<std::atomic<uint64_t>, shared_mem_deleter<std::atomic<uint64_t>>> size_nbytes_; /// size of cache
+                                                                                                    /// memory used
+    std::unique_ptr<uint64_t, shared_mem_deleter<uint64_t>> capacity_nbytes_; /// size of cache memory allocated
 
-    std::atomic<uint64_t> stat_hit_ = 0; /// cache hit count
-    std::atomic<uint64_t> stat_miss_ = 0; /// cache miss mcount
-    bool stat_is_recorded_ = false; /// whether if cache stat is recorded or not
+    std::unique_ptr<std::atomic<uint64_t>, shared_mem_deleter<std::atomic<uint64_t>>> stat_hit_; /// cache hit count
+    std::unique_ptr<std::atomic<uint64_t>, shared_mem_deleter<std::atomic<uint64_t>>> stat_miss_; /// cache miss mcount
+    std::unique_ptr<bool, shared_mem_deleter<bool>> stat_is_recorded_; /// whether if cache stat is recorded or not
 
-    std::vector<std::shared_ptr<ImageCacheItem>> list_; /// circular list using vector
-    std::atomic<uint32_t> list_head_ = 0; /// head
-    std::atomic<uint32_t> list_tail_ = 0; /// tail
+    std::shared_ptr<void> list_;
+    std::unique_ptr<std::atomic<uint32_t>, shared_mem_deleter<std::atomic<uint32_t>>> list_head_; /// head
+    std::unique_ptr<std::atomic<uint32_t>, shared_mem_deleter<std::atomic<uint32_t>>> list_tail_; /// tail
 };
 
 } // namespace cucim::cache
