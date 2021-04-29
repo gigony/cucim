@@ -45,7 +45,7 @@ struct EXPORT_VISIBLE ImageCacheKey
 
 struct EXPORT_VISIBLE ImageCacheValue
 {
-    ImageCacheValue(void* data, uint64_t size);
+    ImageCacheValue(void* data, uint64_t size, void* segment = nullptr);
     ~ImageCacheValue();
 
     static std::shared_ptr<ImageCacheValue> create(void* data, uint64_t size, std::shared_ptr<void>& seg);
@@ -54,6 +54,7 @@ struct EXPORT_VISIBLE ImageCacheValue
 
     void* data = nullptr;
     uint64_t size = 0;
+    void* segment = nullptr;
 };
 struct EXPORT_VISIBLE ImageCacheItem
 {
@@ -86,10 +87,15 @@ class EXPORT_VISIBLE ImageCache
 {
 public:
     ImageCache() = delete;
-    ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = false);
+    ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = true);
+    ~ImageCache();
 
     std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index);
     std::shared_ptr<ImageCacheValue> create_value(void* data, uint64_t size);
+
+    void* allocate(std::size_t n);
+    void lock(uint64_t index);
+    void unlock(uint64_t index);
 
     bool insert(std::shared_ptr<ImageCacheKey> key, std::shared_ptr<ImageCacheValue> value);
 
@@ -136,6 +142,8 @@ public:
 private:
     std::shared_ptr<void> segment_;
     std::shared_ptr<void> hashmap_;
+
+    void* mutex_array_ = nullptr;
 
     std::unique_ptr<uint32_t, shared_mem_deleter<uint32_t>> capacity_; /// capacity of hashmap
     std::unique_ptr<uint32_t, shared_mem_deleter<uint32_t>> list_capacity_; /// capacity of list
