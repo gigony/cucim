@@ -23,8 +23,8 @@
 namespace cucim::cache
 {
 
-constexpr uint32_t DEFAULT_CAPACITY = 1024;
-constexpr uint64_t DEFAULT_MEMORY_CAPACITY = 1024 * 1024 * 3 * 50;
+constexpr uint32_t DEFAULT_CAPACITY = 8196;
+constexpr uint64_t DEFAULT_MEMORY_CAPACITY = 1UL * 1024 * 1024 * 3 * 920;
 
 class EXPORT_VISIBLE ImageCacheManager
 {
