@@ -421,7 +421,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
     uint8_t* tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
 
     int tiff_file = tiff->file_handle_.fd;
-    uint64_t ifd_hash_value = ifd->hash_value_;
+    uint64_t ifd_hash_value = ifd->hash_value_; //[cache]
 
 
     //    uint32_t nbytes_offset_sx = offset_sx * samples_per_pixel;
@@ -464,26 +464,33 @@ bool IFD::read_region_tiles(const TIFF* tiff,
 
             if (tiledata_size > 0)
             {
+                // clang-format off
                 // cucim::logger::Timer tt("decode_deflate: {}\n");
-                auto key = g_image_cache.create_key(ifd_hash_value, index);
+                //fmt::print(stderr, "# {}: {} {} - before key\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                auto key = g_image_cache.create_key(ifd_hash_value, index); //[cache]
+                //fmt::print(stderr, "# {}: {} {} - after key/before lock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
                 // * lock(index)
-                g_image_cache.lock(index);
-                auto value = g_image_cache.find(key);
-                if (value)
-                {
+                g_image_cache.lock(index); //[cache][w lock]
+                //fmt::print(stderr, "# {}: {} {} - after lock/before find\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                auto value = g_image_cache.find(key); //[cache]
+                //fmt::print(stderr, "# {}: {} {} -   after find\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                if (value) //[cache]
+                { //[cache]
                     // * unlock(index)
-                    g_image_cache.unlock(index);
+                    //fmt::print(stderr, "# {}: {} {} -   before unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                    g_image_cache.unlock(index); //[cache][w lock]
+                    //fmt::print(stderr, "# {}: {} {} -   after unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
 
                     // std::cerr << "# " << curr_pid << " " << index << " "
                     //           << "found\n";
-                    tile_data = static_cast<uint8_t*>(value->data);
+                    tile_data = static_cast<uint8_t*>(value->data); //[cache]
                     // fmt::print(stderr, "# {} {} found: {}\n", getpid(), index, (uint64_t)tile_data);
-                }
-                else
-                {
+                } //[cache]
+                else //[cache]
+                { //[cache]
                     // Lifetime of tile_data is same with `value`
                     // : do not access this data when `value` is not accessible.
-                    tile_data = static_cast<uint8_t*>(g_image_cache.allocate(tile_raster_nbytes));
+                    tile_data = static_cast<uint8_t*>(g_image_cache.allocate(tile_raster_nbytes)); //[cache]
 
                     // fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data);
                     // std::cerr << "# " << curr_pid << " " << index << " "
@@ -499,11 +506,13 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                         cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
                                                          tile_raster_nbytes, out_device);
                     }
-                    value = g_image_cache.create_value(tile_data, tile_raster_nbytes);
-                    g_image_cache.insert(key, value);
+                    value = g_image_cache.create_value(tile_data, tile_raster_nbytes); //[cache]
+                    g_image_cache.insert(key, value); //[cache]
                     // * unlock(index)
-                    g_image_cache.unlock(index);
-                }
+                    //fmt::print(stderr, "# {}: {} {} -   before unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                    g_image_cache.unlock(index); //[cache][w lock]
+                    //fmt::print(stderr, "# {}: {} {} -   after unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                } //[cache]
 
                 for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
                      ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
@@ -641,7 +650,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
 
 
     int tiff_file = tiff->file_handle_.fd;
-    uint64_t ifd_hash_value = ifd->hash_value_;
+    uint64_t ifd_hash_value = ifd->hash_value_; //[cache]
 
     uint32_t dest_pixel_step_y = w * samples_per_pixel;
     uint32_t nbytes_tw = tw * samples_per_pixel;
@@ -713,24 +722,31 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                 uint8_t* tile_data = tile_raster;
 
                 // cucim::logger::Timer tt("decode_deflate: {}\n");
-                auto key = g_image_cache.create_key(ifd_hash_value, index);
+                // clang-format off
+                //fmt::print(stderr, "# {}: {} {} - before key\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                auto key = g_image_cache.create_key(ifd_hash_value, index); //[cache]
+                //fmt::print(stderr, "# {}: {} {} - after key/before lock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
                 // * lock(index)
-                g_image_cache.lock(index);
-                auto value = g_image_cache.find(key);
-                if (value)
-                {
+                g_image_cache.lock(index); //[cache][w lock]
+                //fmt::print(stderr, "# {}: {} {} - after lock/before find\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                auto value = g_image_cache.find(key); //[cache]
+                //fmt::print(stderr, "# {}: {} {} -   after find\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                if (value) //[cache]
+                { //[cache]
                     // * unlock(index)
-                    g_image_cache.unlock(index);
+                    //fmt::print(stderr, "# {}: {} {} -   before unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                    g_image_cache.unlock(index); //[cache][w lock]
+                    //fmt::print(stderr, "# {}: {} {} -   after unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
                     // std::cerr << std::dec << "# " << curr_pid << " " << index << " "
                     //           << "found\n";
-                    tile_data = static_cast<uint8_t*>(value->data);
+                    tile_data = static_cast<uint8_t*>(value->data); //[cache]
                     // fmt::print(stderr, "# {} {} found: {}\n", getpid(), index, (uint64_t)tile_data);
-                }
-                else
-                {
+                } //[cache]
+                else //[cache]
+                { //[cache]
                     // Lifetime of tile_data is same with `value`
                     // : do not access this data when `value` is not accessible.
-                    tile_data = static_cast<uint8_t*>(g_image_cache.allocate(tile_raster_nbytes));
+                    tile_data = static_cast<uint8_t*>(g_image_cache.allocate(tile_raster_nbytes)); //[cache]
 
                     // fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data);
                     // std::cerr << std::dec << "# " << curr_pid << " " << index << " "
@@ -746,11 +762,14 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                         cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
                                                          tile_raster_nbytes, out_device);
                     }
-                    value = g_image_cache.create_value(tile_data, tile_raster_nbytes);
-                    g_image_cache.insert(key, value);
+                    value = g_image_cache.create_value(tile_data, tile_raster_nbytes); //[cache]
+                    g_image_cache.insert(key, value); //[cache]
                     // * unlock(index)
-                    g_image_cache.unlock(index);
-                }
+                    //fmt::print(stderr, "# {}: {} {} -   before unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                    g_image_cache.unlock(index); //[cache][w lock]
+                    //fmt::print(stderr, "# {}: {} {} -   after unlock\n", std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index); // [print]
+                } //[cache]
+                // clang-format on
 
                 if (copy_partial)
                 {
