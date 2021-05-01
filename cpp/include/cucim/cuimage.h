@@ -20,6 +20,7 @@
 #include "cucim/core/framework.h"
 
 #include "cucim/cache/image_cache_manager.h"
+#include "cucim/config/config.h"
 #include "cucim/filesystem/file_path.h"
 #include "cucim/io/device.h"
 #include "cucim/io/format/image_format.h"
@@ -107,7 +108,8 @@ public:
     }
 
     static Framework* get_framework();
-    static cache::ImageCacheManager& get_cache_manager();
+    static config::Config* get_config();
+    static cache::ImageCacheManager* get_cache_manager();
 
     filesystem::Path path() const;
 
@@ -171,7 +173,9 @@ private:
 
 
     static Framework* framework_;
-    static cache::ImageCacheManager cache_manager_;
+    // Note: config_ should be placed before cache_manager_ (cache_manager_ depends on config_)
+    static std::unique_ptr<config::Config> config_;
+    static std::unique_ptr<cache::ImageCacheManager> cache_manager_;
 
     mutable Mutex mutex_;
     cucim::io::format::IImageFormat* image_formats_ = nullptr;

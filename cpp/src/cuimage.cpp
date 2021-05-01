@@ -111,7 +111,8 @@ DetectedFormat detect_format(filesystem::Path path)
 
 
 Framework* CuImage::framework_ = cucim::acquire_framework("cucim");
-cache::ImageCacheManager CuImage::cache_manager_;
+std::unique_ptr<config::Config> CuImage::config_ = std::make_unique<config::Config>();
+std::unique_ptr<cache::ImageCacheManager> CuImage::cache_manager_ = std::make_unique<cache::ImageCacheManager>();
 
 
 CuImage::CuImage(const filesystem::Path& path)
@@ -256,9 +257,14 @@ Framework* CuImage::get_framework()
     return framework_;
 }
 
-cache::ImageCacheManager& CuImage::get_cache_manager()
+config::Config* CuImage::get_config()
 {
-    return cache_manager_;
+    return config_.get();
+}
+
+cache::ImageCacheManager* CuImage::get_cache_manager()
+{
+    return cache_manager_.get();
 }
 
 filesystem::Path CuImage::path() const
