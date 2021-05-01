@@ -16,42 +16,43 @@
 
 #include "cucim/cache/image_cache_manager.h"
 
+#include "cucim/cuimage.h"
+
 #include <cstdlib>
+#include <fmt/format.h>
 
 
 namespace cucim::cache
 {
 
-ImageCacheManager::ImageCacheManager() : cache_(default_capacity(), default_memory_capacity())
+ImageCacheManager::ImageCacheManager() : cache_(std::move(create_cache()))
 {
-    // Read config from cucim.json (current, /home/.config/cucim/cucim.json)
-    // Override environment variable
 }
 
-cucim::cache::ImageCache& ImageCacheManager::get_cache()
+cucim::cache::ImageCache* ImageCacheManager::get_cache()
 {
-    return cache_;
+    return cache_.get();
 }
 
 void ImageCacheManager::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
 {
-    cache_.reserve(new_capacity, new_mem_capacity);
+    cache_->reserve(new_capacity, new_mem_capacity);
 }
 
 uint32_t ImageCacheManager::default_capacity() const
 {
-    // access
-    return DEFAULT_CAPACITY;
+    return cucim::CuImage::get_config()->cache_capacity();
 }
+
 uint64_t ImageCacheManager::default_memory_capacity() const
 {
-    return DEFAULT_MEMORY_CAPACITY;
+    return cucim::CuImage::get_config()->cache_memory_capacity();
+}
+
+std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
+{
+    auto cache = std::make_unique<ImageCache>(default_capacity(), default_memory_capacity());
+    return cache;
 }
 
 } // namespace cucim::cache
-
-// std::string plugin_path = default_value;
-// if (const char* env_p = std::getenv("CUCIM_TEST_PLUGIN_PATH"))
-// {
-//     plugin_path = env_p;
-// }

@@ -17,6 +17,7 @@
 
 #include "cucim/cache/image_cache.h"
 
+#include "cucim/cuimage.h"
 #include "cucim/memory/memory_manager.h"
 
 #include <boost/interprocess/smart_ptr/shared_ptr.hpp>
@@ -42,7 +43,7 @@ private:
     P p_;
 
 public:
-    null_deleter(P const& p) : p_(p)
+    null_deleter(const P& p) : p_(p)
     {
     }
     void operator()(void const*)
@@ -57,19 +58,20 @@ public:
 };
 
 template <class T>
-void shared_mem_deleter<T>::operator()(T* p)
+shared_mem_deleter<T>::shared_mem_deleter(std::shared_ptr<void>& segment) : seg_(segment)
 {
-    if (segment_)
-    {
-        reinterpret_cast<boost::interprocess::managed_shared_memory*>(segment_)->destroy_ptr(p);
-    }
 }
 
 template <class T>
-shared_mem_deleter<T>::shared_mem_deleter(void* segment) : segment_(segment)
+void shared_mem_deleter<T>::operator()(T* p)
 {
-    // do nothing.
+    if (seg_)
+    {
+        const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(seg_);
+        segment->destroy_ptr(p);
+    }
 }
+
 
 // Apparently, cache requires about 600 bytes per capacity for the data structure (hashmap/vector).
 // so Allocate additional bytes which are 1024(rough estimation per slot) * (capacity) bytes would be needed.
@@ -273,21 +275,19 @@ using QueueType = std::vector<MapValue::type, ValueAllocator>;
 // using ImageCacheType = libcuckoo::cuckoohash_map<std::shared_ptr<ImageCacheKey>, std::shared_ptr<ImageCacheItem>>;
 
 constexpr uint32_t LIST_PADDING = 64; /// additional buffer for multi-threaded environment
-constexpr const char* kSegmentName = "cucim-0";
 constexpr const int kNumMutexes = 1117;
 
 ImageCache::ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat)
-    : segment_(std::make_shared<boost::interprocess::managed_shared_memory>(
-          boost::interprocess::open_or_create, kSegmentName, calc_segment_size(capacity, mem_capacity))),
-      capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_.get())),
-      list_capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_.get())),
-      size_nbytes_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_.get())),
-      capacity_nbytes_(nullptr, shared_mem_deleter<uint64_t>(segment_.get())),
-      stat_hit_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_.get())),
-      stat_miss_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_.get())),
-      stat_is_recorded_(nullptr, shared_mem_deleter<bool>(segment_.get())),
-      list_head_(nullptr, shared_mem_deleter<std::atomic<uint32_t>>(segment_.get())),
-      list_tail_(nullptr, shared_mem_deleter<std::atomic<uint32_t>>(segment_.get()))
+    : segment_(create_segment(capacity, mem_capacity)),
+      capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
+      list_capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
+      size_nbytes_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
+      capacity_nbytes_(nullptr, shared_mem_deleter<uint64_t>(segment_)),
+      stat_hit_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
+      stat_miss_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
+      stat_is_recorded_(nullptr, shared_mem_deleter<bool>(segment_)),
+      list_head_(nullptr, shared_mem_deleter<std::atomic<uint32_t>>(segment_)),
+      list_tail_(nullptr, shared_mem_deleter<std::atomic<uint32_t>>(segment_))
 {
     const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
 
@@ -330,13 +330,29 @@ ImageCache::ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_sta
 
 ImageCache::~ImageCache()
 {
-    const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
-    const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
+    {
+        const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
+        const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
 
-    segment->destroy<boost::interprocess::interprocess_mutex>("cucim-mutex");
+        segment->destroy<boost::interprocess::interprocess_mutex>("cucim-mutex");
 
-    fmt::print("## {} hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", segment->get_free_memory(), *stat_hit_,
-               *stat_miss_, *stat_hit_ + *stat_miss_, size(), *list_capacity_, hashmap->size());
+        fmt::print("## {} hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", segment->get_free_memory(), *stat_hit_,
+                   *stat_miss_, *stat_hit_ + *stat_miss_, size(), *list_capacity_, hashmap->size());
+
+        // Destroy objects that uses the shared memory object(segment_)
+        hashmap_.reset();
+        list_.reset();
+
+        // Destroy the shared memory object
+        segment_.reset();
+    }
+
+    bool succeed = remove_shmem();
+    if (!succeed)
+    {
+        fmt::print(stderr, "[warning] Couldn't delete the shared memory object '{}'.",
+                   cucim::CuImage::get_config()->shm_name());
+    }
 }
 
 std::shared_ptr<ImageCacheKey> ImageCache::create_key(uint64_t file_hash, uint64_t index)
@@ -573,6 +589,28 @@ bool ImageCache::erase(const std::shared_ptr<ImageCacheKey>& key)
     auto key_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheKey>>>(key)->get();
     const bool succeed = hashmap->erase(key_impl);
     return succeed;
+}
+
+bool ImageCache::remove_shmem()
+{
+    cucim::config::Config* config = cucim::CuImage::get_config();
+    if (config)
+    {
+        std::string shm_name = config->shm_name();
+        return boost::interprocess::shared_memory_object::remove(shm_name.c_str());
+    }
+    return false;
+}
+
+std::shared_ptr<void> ImageCache::create_segment(uint32_t capacity, uint64_t mem_capacity)
+{
+    // Remove the existing shared memory object.
+    remove_shmem();
+
+    auto segment = std::make_shared<boost::interprocess::managed_shared_memory>(
+        boost::interprocess::open_or_create, cucim::CuImage::get_config()->shm_name().c_str(),
+        calc_segment_size(capacity, mem_capacity));
+    return segment;
 }
 
 } // namespace cucim::cache

@@ -14,32 +14,21 @@
  * limitations under the License.
  */
 
-#ifndef CUCIM_CACHE_IMAGE_CACHE_MANAGER_H
-#define CUCIM_CACHE_IMAGE_CACHE_MANAGER_H
+#ifndef CUCIM_CACHE_CACHE_TYPE_H
+#define CUCIM_CACHE_CACHE_TYPE_H
 
-#include "cucim/core/framework.h"
-#include "cucim/cache/image_cache.h"
+#include <cstdint>
 
 namespace cucim::cache
 {
 
-class EXPORT_VISIBLE ImageCacheManager
+enum class CacheType : uint8_t
 {
-public:
-    ImageCacheManager();
-
-    ImageCache* get_cache();
-    void reserve(uint32_t capacity, uint64_t mem_capacity);
-
-    uint32_t default_capacity() const;
-    uint64_t default_memory_capacity() const;
-
-private:
-    std::unique_ptr<ImageCache> create_cache() const;
-
-    std::unique_ptr<ImageCache> cache_;
+    kNoCache,
+    kPerProcess,
+    kSharedMemory
 };
 
 } // namespace cucim::cache
 
-#endif // CUCIM_CACHE_IMAGE_CACHE_MANAGER_H
+#endif // CUCIM_CACHE_CACHE_TYPE_H

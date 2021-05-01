@@ -19,10 +19,11 @@
 
 #include "cucim/core/framework.h"
 
+#include "cucim/cache/cache_type.h"
+
 #include <memory>
 #include <atomic>
 #include <functional>
-
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -30,7 +31,6 @@
 
 namespace cucim::cache
 {
-
 
 struct EXPORT_VISIBLE ImageCacheKey
 {
@@ -70,11 +70,11 @@ struct EXPORT_VISIBLE ImageCacheItem
 template <class T>
 struct shared_mem_deleter
 {
-    shared_mem_deleter(void* segment);
+    shared_mem_deleter(std::shared_ptr<void>& segment);
     void operator()(T* p);
 
 private:
-    void* segment_ = nullptr;
+    std::shared_ptr<void>& seg_;
 };
 
 /**
@@ -140,7 +140,12 @@ public:
     bool erase(const std::shared_ptr<ImageCacheKey>& key);
 
 private:
+    static bool remove_shmem();
+
+    std::shared_ptr<void> create_segment(uint32_t capacity, uint64_t mem_capacity);
+
     std::shared_ptr<void> segment_;
+    std::shared_ptr<void> list_;
     std::shared_ptr<void> hashmap_;
 
     void* mutex_array_ = nullptr;
@@ -155,7 +160,6 @@ private:
     std::unique_ptr<std::atomic<uint64_t>, shared_mem_deleter<std::atomic<uint64_t>>> stat_miss_; /// cache miss mcount
     std::unique_ptr<bool, shared_mem_deleter<bool>> stat_is_recorded_; /// whether if cache stat is recorded or not
 
-    std::shared_ptr<void> list_;
     std::unique_ptr<std::atomic<uint32_t>, shared_mem_deleter<std::atomic<uint32_t>>> list_head_; /// head
     std::unique_ptr<std::atomic<uint32_t>, shared_mem_deleter<std::atomic<uint32_t>>> list_tail_; /// tail
 };

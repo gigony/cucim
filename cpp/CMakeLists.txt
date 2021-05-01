@@ -43,6 +43,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/codec/base64.h
         include/cucim/codec/hash_function.h
         include/cucim/codec/methods.h
+        include/cucim/config/config.h
         include/cucim/core/framework.h
         include/cucim/core/plugin.h
         include/cucim/core/plugin_util.h
@@ -65,6 +66,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/cache/image_cache_manager.cpp
         src/cache/image_cache.cpp
         src/codec/base64.cpp
+        src/config/config.cpp
         src/core/cucim_framework.h
         src/core/cucim_framework.cpp
         src/core/cucim_plugin.h
@@ -135,6 +137,7 @@ target_link_libraries(${CUCIM_PACKAGE_NAME}
             deps::gds
             deps::libcuckoo
             deps::boost-header-only
+            deps::json
         )
 
 if (CUCIM_STATIC_GDS)
