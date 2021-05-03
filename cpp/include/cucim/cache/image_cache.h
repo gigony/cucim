@@ -106,6 +106,11 @@ public:
     void push_back(std::shared_ptr<ImageCacheItem> item);
 
     uint32_t size() const;
+    uint64_t memory_size() const;
+
+    uint32_t capacity() const;
+    uint64_t memory_capacity() const;
+    uint64_t free_memory() const;
 
     /**
      * @brief Record cache stat.
@@ -142,6 +147,7 @@ public:
 private:
     static bool remove_shmem();
 
+    uint32_t calc_hashmap_capacity(uint32_t capacity);
     std::shared_ptr<void> create_segment(uint32_t capacity, uint64_t mem_capacity);
 
     std::shared_ptr<void> segment_;

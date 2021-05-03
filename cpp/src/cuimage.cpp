@@ -16,13 +16,13 @@
 
 #include "cucim/cuimage.h"
 
+#include "cucim/util/file.h"
+
+#include <fmt/format.h>
+
 #include <iostream>
 #include <fstream>
 #include <cstring>
-#include <sys/stat.h>
-
-#include "cucim/core/framework.h"
-#include <fmt/format.h>
 
 namespace cucim
 {
@@ -777,8 +777,7 @@ void CuImage::ensure_init()
                                                        CUCIM_VERSION_MAJOR, CUCIM_VERSION_MINOR, CUCIM_VERSION_PATCH) :
                                            fmt::format("cucim.kit.cuslide@{}.{}.{}.so", CUCIM_VERSION_MAJOR,
                                                        CUCIM_VERSION_MINOR, CUCIM_VERSION_PATCH);
-        struct stat st_buff;
-        if (stat(plugin_file_path.c_str(), &st_buff) != 0)
+        if (!cucim::util::file_exists(plugin_file_path.c_str()))
         {
             plugin_file_path = fmt::format(
                 "cucim.kit.cuslide@{}.{}.{}.so", CUCIM_VERSION_MAJOR, CUCIM_VERSION_MINOR, CUCIM_VERSION_PATCH);

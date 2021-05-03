@@ -333,7 +333,7 @@ CuFileDriverInitializer::CuFileDriverInitializer()
         max_device_cache_size_ = DEFAULT_MAX_CACHE_SIZE;
         max_host_cache_size_ = DEFAULT_MAX_CACHE_SIZE;
 
-        // fmt::print(stderr, "[warning] CuFileDriver cannot be open. Falling back to use POSIX file IO APIs.\n");
+        // fmt::print(stderr, "[Warning] CuFileDriver cannot be open. Falling back to use POSIX file IO APIs.\n");
     }
 }
 CuFileDriverInitializer::~CuFileDriverInitializer()

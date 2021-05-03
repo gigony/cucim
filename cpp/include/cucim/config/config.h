@@ -27,8 +27,14 @@
 namespace cucim::config
 {
 
-constexpr uint32_t kDefaultCacheCapacity = 8196;
-constexpr uint64_t kDefaultMemoryCapacity = 1UL * 1024 * 1024 * 3 * 920;
+constexpr const char* kDefaultConfigFileName = ".cucim.json";
+constexpr uint64_t kOneMiB = 1024UL * 1024;
+constexpr uint64_t kDefaultCacheMemoryCapacity = 1024UL;
+// Assume that user uses memory block whose size is least 256 x 256 x 3 bytes.
+constexpr uint32_t calc_default_cache_capacity(uint64_t memory_capacity_in_bytes)
+{
+    return memory_capacity_in_bytes / (256UL * 256 * 3);
+}
 
 class Config
 {
@@ -50,8 +56,8 @@ private:
     std::string source_path_;
 
     cucim::cache::CacheType cache_type_ = cucim::cache::CacheType::kSharedMemory;
-    uint32_t cache_capacity_ = kDefaultCacheCapacity;
-    uint64_t cache_memory_capacity_ = kDefaultMemoryCapacity;
+    uint32_t cache_capacity_ = calc_default_cache_capacity(kDefaultCacheMemoryCapacity * kOneMiB);
+    uint64_t cache_memory_capacity_ = kDefaultCacheMemoryCapacity * kOneMiB;
 };
 
 } // namespace cucim::config
