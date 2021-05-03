@@ -60,6 +60,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/macros/defines.h
         include/cucim/memory/dlpack.h
         include/cucim/memory/memory_manager.h
+        include/cucim/util/file.h
         include/cucim/3rdparty/dlpack/dlpack.h
         include/cucim/3rdparty/dlpack/dlpackcpp.h
         src/cuimage.cpp
@@ -80,7 +81,8 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/io/format/image_format.cpp
         src/logger/logger.cpp
         src/logger/timer.cpp
-        src/memory/memory_manager.cu)
+        src/memory/memory_manager.cu
+        src/util/file.cpp)
 
 # Compile options
 set_target_properties(${CUCIM_PACKAGE_NAME}

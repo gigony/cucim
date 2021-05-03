@@ -16,11 +16,14 @@
 
 #include "cucim/config/config.h"
 
+#include "cucim/util/file.h"
+
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 
 using json = nlohmann::json;
 
@@ -36,7 +39,11 @@ Config::Config()
     {
         is_configured_from_file = parse_config(config_path);
     }
-    if (!is_configured_from_file)
+    if (is_configured_from_file)
+    {
+        source_path_ = config_path;
+    }
+    else
     {
         set_default_configuration();
     }
@@ -74,14 +81,30 @@ std::string Config::get_config_path() const
     //   1. A path specified by 'CUCIM_CONFIG_PATH'
     //   2. (current folder)/.cucim.json
     //   3. $HOME/.cucim.json
+    std::string config_path;
 
-
-    // std::string plugin_path = default_value;
-    // if (const char* env_p = std::getenv("CUCIM_TEST_PLUGIN_PATH"))
-    // {
-    //     plugin_path = env_p;
-    // }
-    return "";
+    if (const char* env_p = std::getenv("CUCIM_CONFIG_PATH"))
+    {
+        if (cucim::util::file_exists(env_p))
+        {
+            config_path = env_p;
+        }
+    }
+    if (config_path.empty() && cucim::util::file_exists(kDefaultConfigFileName))
+    {
+        config_path = kDefaultConfigFileName;
+    }
+    if (config_path.empty())
+    {
+        if (const char* env_p = std::getenv("HOME"))
+        {
+            if (cucim::util::file_exists(kDefaultConfigFileName))
+            {
+                config_path = env_p;
+            }
+        }
+    }
+    return config_path;
 }
 bool Config::parse_config(std::string& path)
 {
@@ -89,8 +112,23 @@ bool Config::parse_config(std::string& path)
     {
         std::ifstream ifs(path);
         json obj = json::parse(ifs, nullptr /*cb*/, true /*allow_exceptions*/, true /*ignore_comments*/);
+        json cache = obj["cache"];
+        if (cache.is_object())
+        {
+            if (cache["memory_capacity"].is_number_unsigned())
+            {
+                cache_memory_capacity_ = cache.value("memory_capacity", kDefaultCacheMemoryCapacity) * kOneMiB;
+                cache_capacity_ = calc_default_cache_capacity(cache_memory_capacity_);
+            }
+            if (cache["capacity"].is_number_unsigned())
+            {
+                cache_capacity_ = cache.value("capacity", calc_default_cache_capacity(cache_memory_capacity_));
+            }
+            fmt::print("# cache_capacity: {}\n", cache_capacity_);
+            fmt::print("# cache_memory_capacity: {}\n", cache_memory_capacity_);
+        }
     }
-    catch (json::parse_error& e)
+    catch (const json::parse_error& e)
     {
         fmt::print(stderr,
                    "Failed to load configuration file: {}\n"
