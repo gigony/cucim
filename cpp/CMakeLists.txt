@@ -38,8 +38,8 @@ endif()
 add_library(${CUCIM_PACKAGE_NAME}
         src/core/framework.cpp
         include/cucim/cuimage.h
-        include/cucim/cache/image_cache_manager.h
         include/cucim/cache/image_cache.h
+        include/cucim/cache/image_cache_manager.h
         include/cucim/codec/base64.h
         include/cucim/codec/hash_function.h
         include/cucim/codec/methods.h
@@ -64,8 +64,10 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/3rdparty/dlpack/dlpack.h
         include/cucim/3rdparty/dlpack/dlpackcpp.h
         src/cuimage.cpp
-        src/cache/image_cache_manager.cpp
         src/cache/image_cache.cpp
+        src/cache/image_cache_empty.h
+        src/cache/image_cache_empty.cpp
+        src/cache/image_cache_manager.cpp
         src/codec/base64.cpp
         src/config/config.cpp
         src/core/cucim_framework.h

@@ -55,7 +55,7 @@ private:
 
     std::string source_path_;
 
-    cucim::cache::CacheType cache_type_ = cucim::cache::CacheType::kSharedMemory;
+    cucim::cache::CacheType cache_type_ = cucim::cache::CacheType::kNoCache;
     uint32_t cache_capacity_ = calc_default_cache_capacity(kDefaultCacheMemoryCapacity * kOneMiB);
     uint64_t cache_memory_capacity_ = kDefaultCacheMemoryCapacity * kOneMiB;
 };
