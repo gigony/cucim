@@ -22,6 +22,25 @@
 namespace cucim::cache
 {
 
+
+struct EXPORT_VISIBLE ImageCacheItem
+{
+    ImageCacheItem(void* item, std::shared_ptr<void> deleter = nullptr);
+
+    virtual ImageCacheKey* key()
+    {
+        return nullptr;
+    };
+    virtual ImageCacheValue* value()
+    {
+        return nullptr;
+    };
+
+    void* item_ = nullptr;
+    std::shared_ptr<void> deleter_;
+};
+
+
 // struct EmptyImageCacheValue : public ImageCacheValue
 // {
 //     EmptyImageCacheValue(void* data, uint64_t size, void* user_obj = nullptr) : ImageCacheValue(data, size,

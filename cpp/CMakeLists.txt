@@ -68,6 +68,8 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/cache/image_cache_empty.h
         src/cache/image_cache_empty.cpp
         src/cache/image_cache_manager.cpp
+        src/cache/image_cache_per_process.h
+        src/cache/image_cache_per_process.cpp
         src/codec/base64.cpp
         src/config/config.cpp
         src/core/cucim_framework.h

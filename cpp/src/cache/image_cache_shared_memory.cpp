@@ -272,7 +272,7 @@ using QueueType = std::vector<MapValue::type, ValueAllocator>;
 
 // using ImageCacheType = libcuckoo::cuckoohash_map<std::shared_ptr<ImageCacheKey>, std::shared_ptr<ImageCacheItem>>;
 
-constexpr uint32_t LIST_PADDING = 64; /// additional buffer for multi-threaded environment
+constexpr uint32_t kListPadding = 64; /// additional buffer for multi-threaded environment
 constexpr const int kNumMutexes = 1117;
 
 
@@ -306,7 +306,7 @@ ImageCache::ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_sta
 
         capacity_.reset(segment->find_or_construct<uint32_t>("capacity_")(capacity)); /// capacity
                                                                                       /// of hashmap
-        list_capacity_.reset(segment->find_or_construct<uint32_t>("list_capacity_")(capacity + LIST_PADDING)); /// capacity
+        list_capacity_.reset(segment->find_or_construct<uint32_t>("list_capacity_")(capacity + kListPadding)); /// capacity
                                                                                                                /// of
                                                                                                                /// list
 
@@ -563,7 +563,7 @@ void ImageCache::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
         uint32_t old_list_capacity = (*list_capacity_);
 
         (*capacity_) = new_capacity;
-        (*list_capacity_) = new_capacity + LIST_PADDING;
+        (*list_capacity_) = new_capacity + kListPadding;
 
         auto& list = *(std::static_pointer_cast<QueueType>(list_));
         list.reserve(*list_capacity_);

@@ -51,22 +51,6 @@ struct EXPORT_VISIBLE ImageCacheValue
     uint64_t size = 0;
     void* user_obj = nullptr;
 };
-struct EXPORT_VISIBLE ImageCacheItem
-{
-    ImageCacheItem(void* item, std::shared_ptr<void> deleter = nullptr);
-
-    virtual ImageCacheKey* key()
-    {
-        return nullptr;
-    };
-    virtual ImageCacheValue* value()
-    {
-        return nullptr;
-    };
-
-    void* item_ = nullptr;
-    std::shared_ptr<void> deleter_;
-};
 
 /**
  * @brief Image Cache for loading tiles.
@@ -78,7 +62,7 @@ struct EXPORT_VISIBLE ImageCacheItem
 class EXPORT_VISIBLE ImageCache
 {
 public:
-    ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = true);
+    ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = false);
     virtual ~ImageCache(){};
 
     virtual std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) = 0;

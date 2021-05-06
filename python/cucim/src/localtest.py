@@ -25,7 +25,7 @@ from openslide import OpenSlide
 
 from cucim import CuImage
 
-input_file = "notebooks/input/image2.tif"
+input_file = "notebooks/input/image.tif"
 
 img = CuImage(input_file)
 # True if image data is loaded & available.

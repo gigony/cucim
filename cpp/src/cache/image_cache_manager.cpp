@@ -17,6 +17,7 @@
 #include "cucim/cache/image_cache_manager.h"
 
 #include "image_cache_empty.h"
+#include "image_cache_per_process.h"
 #include "cucim/cuimage.h"
 
 #include <cstdlib>
@@ -52,7 +53,7 @@ uint64_t ImageCacheManager::default_memory_capacity() const
 
 std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
 {
-    auto cache = std::make_unique<EmptyImageCache>(default_capacity(), default_memory_capacity());
+    auto cache = std::make_unique<PerProcessImageCache>(default_capacity(), default_memory_capacity());
     return cache;
 }
 
