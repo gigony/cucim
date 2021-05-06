@@ -21,15 +21,36 @@
 
 #include <libcuckoo/cuckoohash_map.hh>
 #include <memory>
-#include <functional>
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
+namespace std
+{
+
+template <>
+struct hash<std::shared_ptr<cucim::cache::ImageCacheKey>>
+{
+    size_t operator()(const std::shared_ptr<cucim::cache::ImageCacheKey>& s) const;
+};
+
+template <>
+struct equal_to<std::shared_ptr<cucim::cache::ImageCacheKey>>
+{
+    bool operator()(const std::shared_ptr<cucim::cache::ImageCacheKey>& lhs,
+                    const std::shared_ptr<cucim::cache::ImageCacheKey>& rhs) const;
+};
+
+} // namespace std
 
 namespace cucim::cache
 {
+
+struct PerProcessImageCacheValue : public ImageCacheValue
+{
+    PerProcessImageCacheValue(void* data, uint64_t size, void* user_obj = nullptr);
+    ~PerProcessImageCacheValue() override;
+};
+
+struct ImageCacheItem; // forward declaration
 
 /**
  * @brief Image Cache for loading tiles.
@@ -38,7 +59,7 @@ namespace cucim::cache
  *
  */
 
-class EXPORT_VISIBLE PerProcessImageCache : public ImageCache
+class PerProcessImageCache : public ImageCache
 {
 public:
     PerProcessImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = true);
@@ -69,6 +90,30 @@ public:
     void reserve(uint32_t new_capacity, uint64_t new_mem_capacity) override;
 
     std::shared_ptr<ImageCacheValue> find(const std::shared_ptr<ImageCacheKey>& key) override;
+
+private:
+    bool is_list_full() const;
+    bool is_mem_full() const;
+    void remove_front();
+    void push_back(std::shared_ptr<ImageCacheItem>& item);
+    bool erase(const std::shared_ptr<ImageCacheKey>& key);
+
+    std::vector<std::shared_ptr<ImageCacheItem>> list_; /// circular list using vector
+    libcuckoo::cuckoohash_map<std::shared_ptr<ImageCacheKey>, std::shared_ptr<ImageCacheItem>> hashmap_; /// hashmap
+                                                                                                         /// using
+                                                                                                         /// libcuckoo
+
+    uint32_t capacity_ = 0; /// capacity of hashmap
+    uint32_t list_capacity_ = 0; /// capacity of list
+    std::atomic<uint64_t> size_nbytes_ = 0; /// size of cache memory used
+    uint64_t capacity_nbytes_ = 0; /// size of cache memory allocated
+
+    std::atomic<uint64_t> stat_hit_ = 0; /// cache hit count
+    std::atomic<uint64_t> stat_miss_ = 0; /// cache miss mcount
+    bool stat_is_recorded_ = false; /// whether if cache stat is recorded or not
+
+    std::atomic<uint32_t> list_head_ = 0; /// head
+    std::atomic<uint32_t> list_tail_ = 0; /// tail
 };
 
 } // namespace cucim::cache

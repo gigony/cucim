@@ -256,7 +256,7 @@
 				"program": "/usr/bin/python3",
 				// https://github.com/catchorg/Catch2/blob/devel/docs/command-line.md#specifying-which-tests-to-run
 				"args": [
-					"${workspaceFolder:python}/cucim/src/localtest2.py",
+					"${workspaceFolder:python}/cucim/src/localtest.py",
 				],
 				"stopAtEntry": false,
 				"cwd": "${workspaceFolder:cucim}",

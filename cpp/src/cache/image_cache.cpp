@@ -35,9 +35,6 @@ ImageCacheValue::operator bool() const
     return data != nullptr;
 }
 
-ImageCacheItem::ImageCacheItem(void* item, std::shared_ptr<void> deleter) : item_(item), deleter_(deleter)
-{
-}
 
 ImageCache::ImageCache(uint32_t, uint64_t, bool){};
 

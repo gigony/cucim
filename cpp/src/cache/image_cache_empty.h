@@ -29,7 +29,7 @@ namespace cucim::cache
  *
  */
 
-class EXPORT_VISIBLE EmptyImageCache : public ImageCache
+class EmptyImageCache : public ImageCache
 {
 public:
     EmptyImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = true);

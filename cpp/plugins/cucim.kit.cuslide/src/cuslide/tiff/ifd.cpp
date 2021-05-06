@@ -456,7 +456,8 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                     // std::cerr << "# " << curr_pid << " " << index << " "
                     //           << "found\n";
                     tile_data = static_cast<uint8_t*>(value->data); //[cache]
-                    // fmt::print(stderr, "# {} {} found: {}\n", getpid(), index, (uint64_t)tile_data);
+                    // fmt::print(stderr, "# {} {} found: {}\n", getpid(), index, (uint64_t)tile_data); // [print_process]
+                    //fmt::print(stderr, "# {} {} found: {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), index, (uint64_t)tile_data); // [print_thread]
                 } //[cache]
                 else //[cache]
                 { //[cache]
@@ -464,7 +465,8 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                     // : do not access this data when `value` is not accessible.
                     tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes)); //[cache]
 
-                    // fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data);
+                    // fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data); // [print_process]
+                    //fmt::print(stderr, "# {} {} not found: {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), index, (uint64_t)tile_data); // [print_thread]
                     // std::cerr << "# " << curr_pid << " " << index << " "
                     //           << "not found : " << std::hex << tile_data << "\n";
 
@@ -713,7 +715,8 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     // std::cerr << std::dec << "# " << curr_pid << " " << index << " "
                     //           << "found\n";
                     tile_data = static_cast<uint8_t*>(value->data); //[cache]
-                    // fmt::print(stderr, "# {} {} found: {}\n", getpid(), index, (uint64_t)tile_data);
+                    // fmt::print(stderr, "# {} {} found: {}\n", getpid(), index, (uint64_t)tile_data); // [print_process]
+                    //fmt::print(stderr, "# {} {} found: {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), index, (uint64_t)tile_data); // [print_thread]
                 } //[cache]
                 else //[cache]
                 { //[cache]
@@ -721,7 +724,8 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     // : do not access this data when `value` is not accessible.
                     tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes)); //[cache]
 
-                    // fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data);
+                    // fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data); // [print_process]
+                    //fmt::print(stderr, "# {} {} notfound: {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), index, (uint64_t)tile_data); // [print_thread]
                     // std::cerr << std::dec << "# " << curr_pid << " " << index << " "
                     //           << "not found : " << std::hex << tile_data << "\n";
 
