@@ -32,6 +32,15 @@
 namespace cucim::cache
 {
 
+struct EXPORT_VISIBLE ImageCacheConfig
+{
+    CacheType cache_type = CacheType::kNoCache;
+    uint64_t memory_capacity = 0;
+    uint32_t capacity = 0;
+    uint32_t mutex_pool_capacity = 0;
+    bool record_stat = false;
+};
+
 struct EXPORT_VISIBLE ImageCacheKey
 {
     ImageCacheKey(uint64_t file_hash, uint64_t index);
@@ -62,7 +71,7 @@ struct EXPORT_VISIBLE ImageCacheValue
 class EXPORT_VISIBLE ImageCache
 {
 public:
-    ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = false);
+    ImageCache(const ImageCacheConfig& config);
     virtual ~ImageCache(){};
 
     virtual std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) = 0;
@@ -73,7 +82,7 @@ public:
     virtual void lock(uint64_t index) = 0;
     virtual void unlock(uint64_t index) = 0;
 
-    virtual bool insert(std::shared_ptr<ImageCacheKey> key, std::shared_ptr<ImageCacheValue> value) = 0;
+    virtual bool insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value) = 0;
 
     virtual uint32_t size() const = 0;
     virtual uint64_t memory_size() const = 0;
@@ -107,9 +116,9 @@ public:
      * This method is not thread-safe.
      *
      * @param capacity Number of elements required
-     * @param mem_capacity Size of memory required in bytes
+     * @param memory_capacity Size of memory required in bytes
      */
-    virtual void reserve(uint32_t new_capacity, uint64_t new_mem_capacity) = 0;
+    virtual void reserve(const ImageCacheConfig& config) = 0;
 
     virtual std::shared_ptr<ImageCacheValue> find(const std::shared_ptr<ImageCacheKey>& key) = 0;
 };

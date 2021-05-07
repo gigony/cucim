@@ -36,9 +36,13 @@ cucim::cache::ImageCache* ImageCacheManager::get_cache()
     return cache_.get();
 }
 
-void ImageCacheManager::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
+void ImageCacheManager::reserve(uint32_t new_capacity, uint64_t new_memory_capacity)
 {
-    cache_->reserve(new_capacity, new_mem_capacity);
+    ImageCacheConfig cache_config;
+    cache_config.capacity = new_capacity;
+    cache_config.memory_capacity = new_memory_capacity;
+
+    cache_->reserve(cache_config);
 }
 
 uint32_t ImageCacheManager::default_capacity() const
@@ -51,9 +55,18 @@ uint64_t ImageCacheManager::default_memory_capacity() const
     return cucim::CuImage::get_config()->cache_memory_capacity();
 }
 
+uint32_t ImageCacheManager::default_mutex_pool_capacity() const
+{
+    return cucim::CuImage::get_config()->cache_mutex_pool_capacity();
+}
+
 std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
 {
-    auto cache = std::make_unique<PerProcessImageCache>(default_capacity(), default_memory_capacity());
+    ImageCacheConfig cache_config;
+    cache_config.capacity = default_capacity();
+    cache_config.memory_capacity = default_memory_capacity();
+    cache_config.mutex_pool_capacity = default_mutex_pool_capacity();
+    auto cache = std::make_unique<PerProcessImageCache>(cache_config);
     return cache;
 }
 

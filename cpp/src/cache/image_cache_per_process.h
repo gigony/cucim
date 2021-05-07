@@ -21,7 +21,7 @@
 
 #include <libcuckoo/cuckoohash_map.hh>
 #include <memory>
-
+#include <array>
 
 namespace std
 {
@@ -62,7 +62,7 @@ struct ImageCacheItem; // forward declaration
 class PerProcessImageCache : public ImageCache
 {
 public:
-    PerProcessImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = true);
+    PerProcessImageCache(const ImageCacheConfig& config);
     ~PerProcessImageCache();
 
     std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) override;
@@ -72,7 +72,7 @@ public:
     void lock(uint64_t index) override;
     void unlock(uint64_t index) override;
 
-    bool insert(std::shared_ptr<ImageCacheKey> key, std::shared_ptr<ImageCacheValue> value) override;
+    bool insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value) override;
 
     uint32_t size() const override;
     uint64_t memory_size() const override;
@@ -87,13 +87,13 @@ public:
     uint64_t hit_count() const override;
     uint64_t miss_count() const override;
 
-    void reserve(uint32_t new_capacity, uint64_t new_mem_capacity) override;
+    void reserve(const ImageCacheConfig& config) override;
 
     std::shared_ptr<ImageCacheValue> find(const std::shared_ptr<ImageCacheKey>& key) override;
 
 private:
     bool is_list_full() const;
-    bool is_mem_full() const;
+    bool is_memory_full() const;
     void remove_front();
     void push_back(std::shared_ptr<ImageCacheItem>& item);
     bool erase(const std::shared_ptr<ImageCacheKey>& key);
@@ -103,10 +103,13 @@ private:
                                                                                                          /// using
                                                                                                          /// libcuckoo
 
-    uint32_t capacity_ = 0; /// capacity of hashmap
-    uint32_t list_capacity_ = 0; /// capacity of list
+    std::vector<std::mutex> mutex_array_;
+
     std::atomic<uint64_t> size_nbytes_ = 0; /// size of cache memory used
     uint64_t capacity_nbytes_ = 0; /// size of cache memory allocated
+    uint32_t capacity_ = 0; /// capacity of hashmap
+    uint32_t list_capacity_ = 0; /// capacity of list
+    uint32_t mutex_pool_capacity_ = 0;
 
     std::atomic<uint64_t> stat_hit_ = 0; /// cache hit count
     std::atomic<uint64_t> stat_miss_ = 0; /// cache miss mcount
