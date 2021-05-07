@@ -21,12 +21,6 @@
 
 #include <fmt/format.h>
 
-// #include <functional>
-
-// #include <sys/types.h>
-// #include <sys/stat.h>
-// #include <unistd.h>
-
 namespace std
 {
 
@@ -68,16 +62,17 @@ PerProcessImageCacheValue::~PerProcessImageCacheValue()
     cucim_free(data);
 };
 
-PerProcessImageCache::PerProcessImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat)
-    : ImageCache(capacity, mem_capacity),
-      hashmap_(capacity),
-      capacity_(capacity),
-      list_capacity_(capacity + kListPadding),
-      capacity_nbytes_(mem_capacity),
-      stat_is_recorded_(record_stat)
+PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
+    : ImageCache(config),
+      list_(config.capacity + kListPadding),
+      hashmap_(config.capacity),
+      mutex_array_(config.mutex_pool_capacity),
+      capacity_nbytes_(config.memory_capacity),
+      capacity_(config.capacity),
+      list_capacity_(config.capacity + kListPadding),
+      mutex_pool_capacity_(config.mutex_pool_capacity),
+      stat_is_recorded_(config.record_stat)
 {
-    list_.reserve(list_capacity_); // keep enough buffer
-    hashmap_.reserve((int)capacity);
 };
 
 PerProcessImageCache::~PerProcessImageCache()
@@ -98,99 +93,159 @@ void* PerProcessImageCache::allocate(std::size_t n)
     return cucim_malloc(n);
 }
 
-void PerProcessImageCache::lock(uint64_t)
+void PerProcessImageCache::lock(uint64_t index)
 {
-    return;
+    mutex_array_[index % mutex_pool_capacity_].lock();
 }
 
-void PerProcessImageCache::unlock(uint64_t)
+void PerProcessImageCache::unlock(uint64_t index)
 {
-    return;
+    mutex_array_[index % mutex_pool_capacity_].unlock();
 }
 
-bool PerProcessImageCache::insert(std::shared_ptr<ImageCacheKey> key, std::shared_ptr<ImageCacheValue> value)
+bool PerProcessImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value)
 {
-    while (is_list_full() || is_mem_full())
+    while (is_list_full() || is_memory_full())
     {
         remove_front();
     }
     auto item = std::make_shared<ImageCacheItem>(key, value);
-    push_back(item);
     bool succeed = hashmap_.insert(key, item);
+    if (succeed)
+    {
+        push_back(item);
+    }
     return succeed;
 }
 
 uint32_t PerProcessImageCache::size() const
 {
-    return 0;
+    uint32_t head = list_head_.load(std::memory_order_relaxed);
+    uint32_t tail = list_tail_.load(std::memory_order_relaxed);
+
+    return (tail + list_capacity_ - head) % list_capacity_;
 }
 
 uint64_t PerProcessImageCache::memory_size() const
 {
-    return 0;
-}
-uint32_t PerProcessImageCache::capacity() const
-{
-    return 0;
-}
-uint64_t PerProcessImageCache::memory_capacity() const
-{
-    return 0;
-}
-uint64_t PerProcessImageCache::free_memory() const
-{
-    return 0;
+    return size_nbytes_.load(std::memory_order_relaxed);
 }
 
-void PerProcessImageCache::record(bool)
+uint32_t PerProcessImageCache::capacity() const
 {
-    return;
+    return capacity_;
+}
+
+uint64_t PerProcessImageCache::memory_capacity() const
+{
+    return capacity_nbytes_;
+}
+
+uint64_t PerProcessImageCache::free_memory() const
+{
+    return capacity_nbytes_ - size_nbytes_.load(std::memory_order_relaxed);
+}
+
+void PerProcessImageCache::record(bool value)
+{
+    stat_hit_.store(0, std::memory_order_relaxed);
+    stat_miss_.store(0, std::memory_order_relaxed);
+    stat_is_recorded_ = value;
 }
 
 bool PerProcessImageCache::record() const
 {
-    return false;
+    return stat_is_recorded_;
 }
 
 uint64_t PerProcessImageCache::hit_count() const
 {
-    return 0;
+    return stat_hit_.load(std::memory_order_relaxed);
 }
 uint64_t PerProcessImageCache::miss_count() const
 {
-    return 0;
+    return stat_miss_.load(std::memory_order_relaxed);
 }
 
-void PerProcessImageCache::reserve(uint32_t, uint64_t)
+void PerProcessImageCache::reserve(const ImageCacheConfig& config)
 {
+    uint32_t new_capacity = config.capacity;
+    uint64_t new_memory_capacity = config.memory_capacity;
+
+    if (capacity_ < new_capacity)
+    {
+        uint32_t old_list_capacity = list_capacity_;
+
+        capacity_ = new_capacity;
+        list_capacity_ = new_capacity + kListPadding;
+
+        list_.reserve(list_capacity_);
+        list_.resize(list_capacity_);
+        hashmap_.reserve(new_capacity);
+
+        // Move items in the vector
+        uint32_t head = list_head_.load(std::memory_order_relaxed);
+        uint32_t tail = list_tail_.load(std::memory_order_relaxed);
+        if (tail < head)
+        {
+            head = 0;
+            uint32_t new_head = old_list_capacity;
+
+            while (head != tail)
+            {
+                list_[new_head] = list_[head];
+                list_[head].reset();
+
+                head = (head + 1) % old_list_capacity;
+                new_head = (new_head + 1) % list_capacity_;
+            }
+            // Set new tail
+            list_tail_.store(new_head, std::memory_order_relaxed);
+        }
+    }
+
+    if (capacity_nbytes_ < new_memory_capacity)
+    {
+        capacity_nbytes_ = new_memory_capacity;
+    }
 }
 
 std::shared_ptr<ImageCacheValue> PerProcessImageCache::find(const std::shared_ptr<ImageCacheKey>& key)
 {
     std::shared_ptr<ImageCacheItem> item;
     const bool found = hashmap_.find(key, item);
-    if (found)
+    if(stat_is_recorded_)
     {
-        return item->value;
+        if (found)
+        {
+            stat_hit_.fetch_add(1, std::memory_order_relaxed);
+            return item->value;
+        }
+        else
+        {
+            stat_miss_.fetch_add(1, std::memory_order_relaxed);
+        }
     }
     else
     {
+        if (found)
+        {
+            return item->value;
+        }
     }
     return std::shared_ptr<ImageCacheValue>();
 }
 
 bool PerProcessImageCache::is_list_full() const
 {
-    uint32_t head = list_head_.load(std::memory_order_relaxed);
-    uint32_t tail = list_tail_.load(std::memory_order_relaxed);
-    if ((tail + list_capacity_ - head) % list_capacity_ >= capacity_)
+    if (size() >= capacity_)
     {
         return true;
     }
     return false;
 }
 
-bool PerProcessImageCache::is_mem_full() const
+bool PerProcessImageCache::is_memory_full() const
 {
     if (size_nbytes_.load(std::memory_order_relaxed) >= capacity_nbytes_)
     {
@@ -201,6 +256,7 @@ bool PerProcessImageCache::is_mem_full() const
         return false;
     }
 }
+
 void PerProcessImageCache::remove_front()
 {
     while (true)
@@ -227,7 +283,6 @@ void PerProcessImageCache::remove_front()
     }
 }
 
-
 void PerProcessImageCache::push_back(std::shared_ptr<ImageCacheItem>& item)
 {
     uint32_t tail = list_tail_.load(std::memory_order_relaxed);
@@ -242,7 +297,6 @@ void PerProcessImageCache::push_back(std::shared_ptr<ImageCacheItem>& item)
             break;
         }
 
-        // head = list_head_.load(std::memory_order_relaxed);
         tail = list_tail_.load(std::memory_order_relaxed);
     }
 }

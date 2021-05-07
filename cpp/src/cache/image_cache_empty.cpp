@@ -20,7 +20,7 @@
 namespace cucim::cache
 {
 
-EmptyImageCache::EmptyImageCache(uint32_t, uint64_t, bool) : ImageCache(0, 0){};
+EmptyImageCache::EmptyImageCache(const ImageCacheConfig& config) : ImageCache(config){};
 
 EmptyImageCache::~EmptyImageCache()
 {
@@ -50,7 +50,7 @@ void EmptyImageCache::unlock(uint64_t)
     return;
 }
 
-bool EmptyImageCache::insert(std::shared_ptr<ImageCacheKey>, std::shared_ptr<ImageCacheValue>)
+bool EmptyImageCache::insert(std::shared_ptr<ImageCacheKey>&, std::shared_ptr<ImageCacheValue>&)
 {
     return true;
 }
@@ -97,7 +97,7 @@ uint64_t EmptyImageCache::miss_count() const
     return 0;
 }
 
-void EmptyImageCache::reserve(uint32_t, uint64_t)
+void EmptyImageCache::reserve(const ImageCacheConfig&)
 {
 }
 

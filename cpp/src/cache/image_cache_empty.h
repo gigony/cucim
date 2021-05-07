@@ -32,7 +32,7 @@ namespace cucim::cache
 class EmptyImageCache : public ImageCache
 {
 public:
-    EmptyImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat = true);
+    EmptyImageCache(const ImageCacheConfig& config);
     ~EmptyImageCache();
 
     std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) override;
@@ -42,7 +42,7 @@ public:
     void lock(uint64_t index) override;
     void unlock(uint64_t index) override;
 
-    bool insert(std::shared_ptr<ImageCacheKey> key, std::shared_ptr<ImageCacheValue> value) override;
+    bool insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value) override;
 
     uint32_t size() const override;
     uint64_t memory_size() const override;
@@ -57,7 +57,7 @@ public:
     uint64_t hit_count() const override;
     uint64_t miss_count() const override;
 
-    void reserve(uint32_t new_capacity, uint64_t new_mem_capacity) override;
+    void reserve(const ImageCacheConfig& config) override;
 
     std::shared_ptr<ImageCacheValue> find(const std::shared_ptr<ImageCacheKey>& key) override;
 };

@@ -272,9 +272,7 @@ using QueueType = std::vector<MapValue::type, ValueAllocator>;
 
 // using ImageCacheType = libcuckoo::cuckoohash_map<std::shared_ptr<ImageCacheKey>, std::shared_ptr<ImageCacheItem>>;
 
-constexpr uint32_t kListPadding = 64; /// additional buffer for multi-threaded environment
-constexpr const int kNumMutexes = 1117;
-
+constexpr uint32_t kListPadding = 64; /// additional buffer for multi-threaded environment (for no good reason)
 
 ImageCache::ImageCache(std::unique_ptr<ImageCacheStrategy> strategy) : strategy_(std::move(strategy))
 {
@@ -284,8 +282,8 @@ ImageCache::~ImageCache()
 {
 }
 
-ImageCache::ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_stat)
-    : segment_(create_segment(capacity, mem_capacity)),
+ImageCache::ImageCache(CacheConfig& config)
+    : segment_(create_segment(config.capacity, config.mem_capacity)),
       capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
       list_capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
       size_nbytes_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
@@ -297,12 +295,17 @@ ImageCache::ImageCache(uint32_t capacity, uint64_t mem_capacity, bool record_sta
       list_tail_(nullptr, shared_mem_deleter<std::atomic<uint32_t>>(segment_))
 {
 
+    uint64_t& memory_capacity = config.memory_capacity;
+    uint32_t& capacity = config.capacity;
+    uint32_t& mutex_pool_capacity = config.mutex_pool_capacity;
+
     try
     {
 
         const auto& segment = std::static_pointer_cast<boost::interprocess::managed_shared_memory>(segment_);
 
-        mutex_array_ = segment->construct_it<boost::interprocess::interprocess_mutex>("cucim-mutex")[kNumMutexes]();
+        mutex_array_ =
+            segment->construct_it<boost::interprocess::interprocess_mutex>("cucim-mutex")[mutex_pool_capacity]();
 
         capacity_.reset(segment->find_or_construct<uint32_t>("capacity_")(capacity)); /// capacity
                                                                                       /// of hashmap
@@ -363,6 +366,7 @@ ImageCache::~ImageCache()
         // Destroy objects that uses the shared memory object(segment_)
         hashmap_.reset();
         list_.reset();
+        segment_.destroy<boost::interprocess::interprocess_mutex>(mutex_array_);
 
         // Destroy the shared memory object
         segment_.reset();
@@ -498,7 +502,6 @@ void ImageCache::push_back(std::shared_ptr<ImageCacheItem> item)
             break;
         }
 
-        // head = list_head_.load(std::memory_order_relaxed);
         tail = (*list_tail_).load(std::memory_order_relaxed);
     }
 }
@@ -554,8 +557,11 @@ uint64_t ImageCache::miss_count() const
 }
 
 
-void ImageCache::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
+void ImageCache::reserve(const ImageCacheConfig& config)
 {
+    uint32_t new_capacity = config.capacity;
+    uint64_t new_memory_capacity = config.memory_capacity;
+
     const auto& hashmap = std::static_pointer_cast<ImageCacheType>(hashmap_);
 
     if ((*capacity_) < new_capacity)
@@ -567,6 +573,7 @@ void ImageCache::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
 
         auto& list = *(std::static_pointer_cast<QueueType>(list_));
         list.reserve(*list_capacity_);
+        list.resize(*list_capacity_);
         hashmap->reserve(new_capacity);
 
         // Move items in the vector
@@ -590,9 +597,9 @@ void ImageCache::reserve(uint32_t new_capacity, uint64_t new_mem_capacity)
         }
     }
 
-    if ((*capacity_nbytes_) < new_mem_capacity)
+    if ((*capacity_nbytes_) < new_memory_capacity)
     {
-        (*capacity_nbytes_) = new_mem_capacity;
+        (*capacity_nbytes_) = new_memory_capacity;
     }
 }
 

@@ -36,6 +36,6 @@ ImageCacheValue::operator bool() const
 }
 
 
-ImageCache::ImageCache(uint32_t, uint64_t, bool){};
+ImageCache::ImageCache(const ImageCacheConfig&){};
 
 } // namespace cucim::cache

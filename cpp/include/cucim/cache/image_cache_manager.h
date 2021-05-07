@@ -29,10 +29,11 @@ public:
     ImageCacheManager();
 
     ImageCache* get_cache();
-    void reserve(uint32_t capacity, uint64_t mem_capacity);
+    void reserve(uint32_t new_capacity, uint64_t new_memory_capacity);
 
     uint32_t default_capacity() const;
     uint64_t default_memory_capacity() const;
+    uint32_t default_mutex_pool_capacity() const;
 
 private:
     std::unique_ptr<ImageCache> create_cache() const;

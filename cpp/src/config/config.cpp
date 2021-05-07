@@ -59,6 +59,11 @@ uint64_t Config::cache_memory_capacity() const
     return cache_memory_capacity_;
 }
 
+uint32_t Config::cache_mutex_pool_capacity() const
+{
+    return cache_mutex_pool_capacity_;
+}
+
 std::string Config::shm_name() const
 {
     return fmt::format("cucim-shm.{}", pid());
@@ -124,8 +129,13 @@ bool Config::parse_config(std::string& path)
             {
                 cache_capacity_ = cache.value("capacity", calc_default_cache_capacity(cache_memory_capacity_));
             }
+            if (cache["mutex_pool_capacity"].is_number_unsigned())
+            {
+                cache_mutex_pool_capacity_ = cache.value("mutex_pool_capacity", kDefaultCacheMutexPoolCapacity);
+            }
             fmt::print("# cache_capacity: {}\n", cache_capacity_);
             fmt::print("# cache_memory_capacity: {}\n", cache_memory_capacity_);
+            fmt::print("# cache_mutex_pool_capacity: {}\n", cache_mutex_pool_capacity_);
         }
     }
     catch (const json::parse_error& e)
