@@ -140,7 +140,8 @@
 			"__functional_base": "cpp",
 			"__node_handle": "cpp",
 			"__memory": "cpp",
-			"*.def": "cpp"
+			"*.def": "cpp",
+			"__mutex_base": "cpp"
 		},
 		// https://vector-of-bool.github.io/docs/vscode-cmake-tools/settings.html
 		"cmake.buildTask": true,
