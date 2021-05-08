@@ -44,9 +44,9 @@ namespace cucim::cache
 
 constexpr uint32_t kListPadding = 64; /// additional buffer for multi-threaded environment
 
-struct ImageCacheItem
+struct PerProcessImageCacheItem
 {
-    ImageCacheItem(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value)
+    PerProcessImageCacheItem(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value)
         : key(key), value(value)
     {
     }
@@ -59,19 +59,23 @@ PerProcessImageCacheValue::PerProcessImageCacheValue(void* data, uint64_t size, 
     : ImageCacheValue(data, size, user_obj){};
 PerProcessImageCacheValue::~PerProcessImageCacheValue()
 {
-    cucim_free(data);
+    if (data)
+    {
+        cucim_free(data);
+        data = nullptr;
+    }
 };
 
 PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
     : ImageCache(config),
-      list_(config.capacity + kListPadding),
-      hashmap_(config.capacity),
       mutex_array_(config.mutex_pool_capacity),
       capacity_nbytes_(config.memory_capacity),
       capacity_(config.capacity),
       list_capacity_(config.capacity + kListPadding),
       mutex_pool_capacity_(config.mutex_pool_capacity),
-      stat_is_recorded_(config.record_stat)
+      stat_is_recorded_(config.record_stat),
+      list_(config.capacity + kListPadding),
+      hashmap_(config.capacity)
 {
 };
 
@@ -105,12 +109,19 @@ void PerProcessImageCache::unlock(uint64_t index)
 
 bool PerProcessImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value)
 {
+    if (value->size > capacity_nbytes_ || capacity_ < 1)
+    {
+        return false;
+    }
+
     while (is_list_full() || is_memory_full())
     {
         remove_front();
     }
-    auto item = std::make_shared<ImageCacheItem>(key, value);
+
+    auto item = std::make_shared<PerProcessImageCacheItem>(key, value);
     bool succeed = hashmap_.insert(key, item);
+
     if (succeed)
     {
         push_back(item);
@@ -212,7 +223,7 @@ void PerProcessImageCache::reserve(const ImageCacheConfig& config)
 
 std::shared_ptr<ImageCacheValue> PerProcessImageCache::find(const std::shared_ptr<ImageCacheKey>& key)
 {
-    std::shared_ptr<ImageCacheItem> item;
+    std::shared_ptr<PerProcessImageCacheItem> item;
     const bool found = hashmap_.find(key, item);
     if(stat_is_recorded_)
     {
@@ -269,7 +280,7 @@ void PerProcessImageCache::remove_front()
             if (list_head_.compare_exchange_weak(
                     head, (head + 1) % list_capacity_, std::memory_order_release, std::memory_order_relaxed))
             {
-                std::shared_ptr<ImageCacheItem> head_item = list_[head];
+                std::shared_ptr<PerProcessImageCacheItem> head_item = list_[head];
                 size_nbytes_.fetch_sub(head_item->value->size, std::memory_order_relaxed);
                 hashmap_.erase(head_item->key);
                 list_[head].reset(); // decrease refcount
@@ -283,7 +294,7 @@ void PerProcessImageCache::remove_front()
     }
 }
 
-void PerProcessImageCache::push_back(std::shared_ptr<ImageCacheItem>& item)
+void PerProcessImageCache::push_back(std::shared_ptr<PerProcessImageCacheItem>& item)
 {
     uint32_t tail = list_tail_.load(std::memory_order_relaxed);
     while (true)

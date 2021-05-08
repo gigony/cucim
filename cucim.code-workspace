@@ -157,7 +157,11 @@
 				"type": "shell",
 				"command": "./run build_local all debug",
 				"options": {
-					"cwd": "${workspaceFolder}"
+					"cwd": "${workspaceFolder}",
+					"env": {
+						// Workaround the environment variable issue: https://github.com/microsoft/vscode/issues/121470
+						"PATH": "${env:PATH}"
+					}
 				},
 				"presentation": {
 					"reveal": "always",

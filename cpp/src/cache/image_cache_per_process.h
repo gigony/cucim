@@ -44,13 +44,15 @@ struct equal_to<std::shared_ptr<cucim::cache::ImageCacheKey>>
 namespace cucim::cache
 {
 
+// Forward declarations
+struct PerProcessImageCacheItem;
+
 struct PerProcessImageCacheValue : public ImageCacheValue
 {
     PerProcessImageCacheValue(void* data, uint64_t size, void* user_obj = nullptr);
     ~PerProcessImageCacheValue() override;
 };
 
-struct ImageCacheItem; // forward declaration
 
 /**
  * @brief Image Cache for loading tiles.
@@ -95,13 +97,8 @@ private:
     bool is_list_full() const;
     bool is_memory_full() const;
     void remove_front();
-    void push_back(std::shared_ptr<ImageCacheItem>& item);
+    void push_back(std::shared_ptr<PerProcessImageCacheItem>& item);
     bool erase(const std::shared_ptr<ImageCacheKey>& key);
-
-    std::vector<std::shared_ptr<ImageCacheItem>> list_; /// circular list using vector
-    libcuckoo::cuckoohash_map<std::shared_ptr<ImageCacheKey>, std::shared_ptr<ImageCacheItem>> hashmap_; /// hashmap
-                                                                                                         /// using
-                                                                                                         /// libcuckoo
 
     std::vector<std::mutex> mutex_array_;
 
@@ -117,6 +114,11 @@ private:
 
     std::atomic<uint32_t> list_head_ = 0; /// head
     std::atomic<uint32_t> list_tail_ = 0; /// tail
+
+    std::vector<std::shared_ptr<PerProcessImageCacheItem>> list_; /// circular list using vector
+    libcuckoo::cuckoohash_map<std::shared_ptr<ImageCacheKey>, std::shared_ptr<PerProcessImageCacheItem>> hashmap_; /// hashmap
+                                                                                                                   /// using
+                                                                                                                   /// libcuckoo
 };
 
 } // namespace cucim::cache
