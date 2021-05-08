@@ -1182,7 +1182,7 @@ main() {
         exit $ret
     fi
 }
-
+echo "$PATH"
 init_globals
 
 if [ -n "${SCRIPT_DIR}" ]; then
