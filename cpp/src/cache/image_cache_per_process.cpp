@@ -281,10 +281,13 @@ void PerProcessImageCache::remove_front()
                     head, (head + 1) % list_capacity_, std::memory_order_release, std::memory_order_relaxed))
             {
                 std::shared_ptr<PerProcessImageCacheItem> head_item = list_[head];
-                size_nbytes_.fetch_sub(head_item->value->size, std::memory_order_relaxed);
-                hashmap_.erase(head_item->key);
-                list_[head].reset(); // decrease refcount
-                break;
+                if (head_item)
+                {
+                    size_nbytes_.fetch_sub(head_item->value->size, std::memory_order_relaxed);
+                    hashmap_.erase(head_item->key);
+                    list_[head].reset(); // decrease refcount
+                    break;
+                }
             }
         }
         else

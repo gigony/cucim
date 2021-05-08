@@ -36,7 +36,6 @@ namespace cucim::cache
 {
 
 // Forward declarations
-struct ImageCacheItem;
 struct ImageCacheItemDetail;
 
 struct SharedMemoryImageCacheValue : public ImageCacheValue
@@ -92,6 +91,25 @@ using ImageCacheType =
     libcuckoo::cuckoohash_map<MapKey::type, MapValue::type, boost::hash<MapKey>, std::equal_to<MapKey>, ImageCacheAllocator>;
 using QueueType = std::vector<MapValue::type, ValueAllocator>;
 
+template <class T>
+using cache_item_type = boost::interprocess::shared_ptr<
+    T,
+    boost::interprocess::allocator<
+        void,
+        boost::interprocess::segment_manager<
+            char,
+            boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family,
+                                                 boost::interprocess::offset_ptr<void, std::ptrdiff_t, uintptr_t, 0UL>,
+                                                 0UL>,
+            boost::interprocess::iset_index>>,
+    boost::interprocess::deleter<
+        T,
+        boost::interprocess::segment_manager<
+            char,
+            boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family,
+                                                 boost::interprocess::offset_ptr<void, std::ptrdiff_t, uintptr_t, 0UL>,
+                                                 0UL>,
+            boost::interprocess::iset_index>>>;
 
 /**
  * @brief Image Cache for loading tiles.
@@ -136,11 +154,11 @@ private:
     bool is_list_full() const;
     bool is_memory_full() const;
     void remove_front();
-    void push_back(std::shared_ptr<ImageCacheItem>& item);
+    void push_back(cache_item_type<ImageCacheItemDetail>& item);
     bool erase(const std::shared_ptr<ImageCacheKey>& key);
 
-    std::shared_ptr<ImageCacheItem> create_cache_item(std::shared_ptr<ImageCacheKey>& key,
-                                                      std::shared_ptr<ImageCacheValue>& value);
+    std::shared_ptr<ImageCacheItemDetail> create_cache_item(std::shared_ptr<ImageCacheKey>& key,
+                                                            std::shared_ptr<ImageCacheValue>& value);
 
     static bool remove_shmem();
 
@@ -149,7 +167,8 @@ private:
 
     std::unique_ptr<boost::interprocess::managed_shared_memory> segment_;
 
-    boost_unique_ptr<boost::interprocess::interprocess_mutex> mutex_array_;
+    // boost_unique_ptr<boost::interprocess::interprocess_mutex> mutex_array_;
+    boost::interprocess::interprocess_mutex* mutex_array_ = nullptr;
     boost_unique_ptr<std::atomic<uint64_t>> size_nbytes_; /// size of cache;
                                                           /// memory used
     boost_unique_ptr<uint64_t> capacity_nbytes_; /// size of cache memory allocated

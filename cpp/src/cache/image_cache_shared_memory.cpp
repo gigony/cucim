@@ -144,24 +144,15 @@ using deleter_type = boost::interprocess::shared_ptr<
                                              boost::interprocess::rbtree_best_fit<boost::interprocess::mutex_family>,
                                              boost::interprocess::iset_index>>>;
 
-struct ImageCacheItem
-{
-    ImageCacheItem(void* item, std::shared_ptr<void> deleter) : item_(item), deleter_(deleter){};
-
-    void* item_ = nullptr;
-    std::shared_ptr<void> deleter_;
-};
-
 struct ImageCacheItemDetail
 {
-    ImageCacheItemDetail(deleter_type<ImageCacheKey>& key, deleter_type<ImageCacheValue>& value)
+    ImageCacheItemDetail(deleter_type<ImageCacheKey>& key, deleter_type<SharedMemoryImageCacheValue>& value)
         : key(key), value(value)
     {
     }
     deleter_type<ImageCacheKey> key;
-    deleter_type<ImageCacheValue> value;
+    deleter_type<SharedMemoryImageCacheValue> value;
 };
-
 
 SharedMemoryImageCacheValue::SharedMemoryImageCacheValue(void* data, uint64_t size, void* user_obj)
     : ImageCacheValue(data, size, user_obj){};
@@ -181,7 +172,7 @@ SharedMemoryImageCacheValue::~SharedMemoryImageCacheValue()
 SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
     : ImageCache(config),
       segment_(create_segment(config.capacity, config.memory_capacity)),
-      mutex_array_(nullptr, shared_mem_deleter<boost::interprocess::interprocess_mutex>(segment_)),
+      //   mutex_array_(nullptr, shared_mem_deleter<boost::interprocess::interprocess_mutex>(segment_)),
       size_nbytes_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
       capacity_nbytes_(nullptr, shared_mem_deleter<uint64_t>(segment_)),
       capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
@@ -200,8 +191,10 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
 
     try
     {
-        mutex_array_.reset(segment_->find_or_construct_it<boost::interprocess::interprocess_mutex>(
-            "cucim-mutex")[mutex_pool_capacity]());
+        // mutex_array_.reset(segment_->find_or_construct_it<boost::interprocess::interprocess_mutex>(
+        //     "cucim-mutex")[mutex_pool_capacity]());
+        mutex_array_ =
+            segment_->construct_it<boost::interprocess::interprocess_mutex>("cucim-mutex")[mutex_pool_capacity]();
 
         size_nbytes_.reset(segment_->find_or_construct<std::atomic<uint64_t>>("size_nbytes_")(0)); /// size of cache
                                                                                                    /// memory used
@@ -250,8 +243,6 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
 SharedMemoryImageCache::~SharedMemoryImageCache()
 {
     {
-        // segment_.destroy<boost::interprocess::interprocess_mutex>("cucim-mutex");
-
         fmt::print("## memory_size: {}, memory_capacity: {}\n", memory_size(), memory_capacity());
         fmt::print("## {} hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", segment_->get_free_memory(), *stat_hit_,
                    *stat_miss_, *stat_hit_ + *stat_miss_, size(), *list_capacity_, hashmap_->size());
@@ -259,7 +250,9 @@ SharedMemoryImageCache::~SharedMemoryImageCache()
         // Destroy objects that uses the shared memory object(segment_)
         hashmap_.reset();
         list_.reset();
-        mutex_array_.reset();
+        segment_->destroy<boost::interprocess::interprocess_mutex>("cucim-mutex");
+        mutex_array_ = nullptr;
+        // mutex_array_.reset();
 
         // Destroy the shared memory object
         segment_.reset();
@@ -283,7 +276,8 @@ std::shared_ptr<ImageCacheKey> SharedMemoryImageCache::create_key(uint64_t file_
 std::shared_ptr<ImageCacheValue> SharedMemoryImageCache::create_value(void* data, uint64_t size)
 {
     auto value = boost::interprocess::make_managed_shared_ptr(
-        segment_->find_or_construct<ImageCacheValue>(boost::interprocess::anonymous_instance)(data, size, &*segment_),
+        segment_->find_or_construct<SharedMemoryImageCacheValue>(boost::interprocess::anonymous_instance)(
+            data, size, &*segment_),
         *segment_);
 
     return std::shared_ptr<ImageCacheValue>(value.get().get(), null_deleter<decltype(value)>(value));
@@ -292,18 +286,37 @@ std::shared_ptr<ImageCacheValue> SharedMemoryImageCache::create_value(void* data
 void* SharedMemoryImageCache::allocate(std::size_t n)
 {
     // TODO: handling OOM exception
-    void* temp = segment_->allocate(n);
+    void* temp = nullptr;
+    try
+    {
+        // fmt::print(stderr, "# {}: {} {}/{} ({})\n",
+        // std::chrono::high_resolution_clock::now().time_since_epoch().count(),
+        //            n, memory_size(), memory_capacity(), free_memory());
+        temp = segment_->allocate(n);
+    }
+    catch (const std::exception& e)
+    {
+        throw std::runtime_error(fmt::format(
+            "[Error] Couldn't allocate shared memory (size: {}). Please increase the cache memory capacity.\n", n));
+    }
+
     return temp;
 }
 
 void SharedMemoryImageCache::lock(uint64_t index)
 {
-    mutex_array_.get()[index % *mutex_pool_capacity_].lock();
+    // fmt::print(stderr, "# {}: {} {} [{}]-   lock\n",
+    // std::chrono::high_resolution_clock::now().time_since_epoch().count(),
+    //            getpid(), index, index % *mutex_pool_capacity_);
+    mutex_array_[index % *mutex_pool_capacity_].lock();
 }
 
 void SharedMemoryImageCache::unlock(uint64_t index)
 {
-    mutex_array_.get()[index % *mutex_pool_capacity_].unlock();
+    // fmt::print(stderr, "# {}: {} {} [{}]-   unlock\n",
+    //            std::chrono::high_resolution_clock::now().time_since_epoch().count(), getpid(), index,
+    //            index % *mutex_pool_capacity_);
+    mutex_array_[index % *mutex_pool_capacity_].unlock();
 }
 
 bool SharedMemoryImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value)
@@ -318,11 +331,13 @@ bool SharedMemoryImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::sh
         remove_front();
     }
 
-    auto item = create_cache_item(key, value);
     auto key_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheKey>>>(key)->get();
-    auto item_impl = std::static_pointer_cast<null_deleter<MapValue::type>>(item->deleter_)->get();
+    auto value_impl = std::get_deleter<null_deleter<deleter_type<SharedMemoryImageCacheValue>>>(value)->get();
+    auto item = boost::interprocess::make_managed_shared_ptr(
+        segment_->find_or_construct<ImageCacheItemDetail>(boost::interprocess::anonymous_instance)(key_impl, value_impl),
+        *segment_);
 
-    bool succeed = hashmap_->insert(key_impl, item_impl);
+    bool succeed = hashmap_->insert(key_impl, item);
     if (succeed)
     {
         push_back(item);
@@ -350,12 +365,14 @@ uint32_t SharedMemoryImageCache::capacity() const
 
 uint64_t SharedMemoryImageCache::memory_capacity() const
 {
-    return *capacity_nbytes_;
+    // Return segment's size instead of the logical capacity.
+    return segment_->get_size();
+    // return *capacity_nbytes_;
 }
 
 uint64_t SharedMemoryImageCache::free_memory() const
 {
-    // Return segment's free memory instead of logical free memory.
+    // Return segment's free memory instead of the logical free memory.
     return segment_->get_free_memory();
     // return *capacity_nbytes_ - size_nbytes_->load(std::memory_order_relaxed);
 }
@@ -486,10 +503,13 @@ void SharedMemoryImageCache::remove_front()
                         head, (head + 1) % (*list_capacity_), std::memory_order_release, std::memory_order_relaxed))
             {
                 auto& head_item = (*list_)[head];
-                (*size_nbytes_).fetch_sub(head_item->value->size, std::memory_order_relaxed);
-                hashmap_->erase(head_item->key);
-                (*list_)[head].reset(); // decrease refcount
-                break;
+                if (head_item) // it is possible that head_item is nullptr
+                {
+                    (*size_nbytes_).fetch_sub(head_item->value->size, std::memory_order_relaxed);
+                    hashmap_->erase(head_item->key);
+                    (*list_)[head].reset(); // decrease refcount
+                    break;
+                }
             }
         }
         else
@@ -499,7 +519,7 @@ void SharedMemoryImageCache::remove_front()
     }
 }
 
-void SharedMemoryImageCache::push_back(std::shared_ptr<ImageCacheItem>& item)
+void SharedMemoryImageCache::push_back(cache_item_type<ImageCacheItemDetail>& item)
 {
     uint32_t tail = (*list_tail_).load(std::memory_order_relaxed);
     while (true)
@@ -509,9 +529,8 @@ void SharedMemoryImageCache::push_back(std::shared_ptr<ImageCacheItem>& item)
                 .compare_exchange_weak(
                     tail, (tail + 1) % (*list_capacity_), std::memory_order_release, std::memory_order_relaxed))
         {
-            auto item_impl = std::static_pointer_cast<null_deleter<MapValue::type>>(item->deleter_)->get();
-            (*list_)[tail] = item_impl;
-            (*size_nbytes_).fetch_add(item_impl->value->size, std::memory_order_relaxed);
+            (*list_)[tail] = item;
+            (*size_nbytes_).fetch_add(item->value->size, std::memory_order_relaxed);
             break;
         }
 
@@ -526,18 +545,6 @@ bool SharedMemoryImageCache::erase(const std::shared_ptr<ImageCacheKey>& key)
     return succeed;
 }
 
-std::shared_ptr<ImageCacheItem> SharedMemoryImageCache::create_cache_item(std::shared_ptr<ImageCacheKey>& key,
-                                                                          std::shared_ptr<ImageCacheValue>& value)
-{
-    auto key_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheKey>>>(key)->get();
-    auto value_impl = std::get_deleter<null_deleter<deleter_type<ImageCacheValue>>>(value)->get();
-
-    auto item = boost::interprocess::make_managed_shared_ptr(
-        segment_->find_or_construct<ImageCacheItemDetail>(boost::interprocess::anonymous_instance)(key_impl, value_impl),
-        *segment_);
-
-    return std::make_shared<ImageCacheItem>(item.get().get(), std::make_shared<null_deleter<decltype(item)>>(item));
-}
 
 bool SharedMemoryImageCache::remove_shmem()
 {
