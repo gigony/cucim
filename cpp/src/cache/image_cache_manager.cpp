@@ -61,12 +61,18 @@ uint32_t ImageCacheManager::default_mutex_pool_capacity() const
     return cucim::CuImage::get_config()->cache_mutex_pool_capacity();
 }
 
+uint32_t ImageCacheManager::default_list_padding() const
+{
+    return cucim::CuImage::get_config()->cache_list_padding();
+}
+
 std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
 {
     ImageCacheConfig cache_config;
     cache_config.capacity = default_capacity();
     cache_config.memory_capacity = default_memory_capacity();
     cache_config.mutex_pool_capacity = default_mutex_pool_capacity();
+    cache_config.list_padding = default_list_padding();
     auto cache = std::make_unique<PerProcessImageCache>(cache_config);
     return cache;
 }

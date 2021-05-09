@@ -174,7 +174,8 @@ private:
     boost_unique_ptr<uint64_t> capacity_nbytes_; /// size of cache memory allocated
     boost_unique_ptr<uint32_t> capacity_; /// capacity of hashmap
     boost_unique_ptr<uint32_t> list_capacity_; /// capacity of list
-    boost_unique_ptr<uint32_t> mutex_pool_capacity_;
+    boost_unique_ptr<uint32_t> list_padding_; /// gap between head and tail
+    boost_unique_ptr<uint32_t> mutex_pool_capacity_; /// capacity of mutex pool
 
     boost_unique_ptr<std::atomic<uint64_t>> stat_hit_; /// cache hit count
     boost_unique_ptr<std::atomic<uint64_t>> stat_miss_; /// cache miss mcount

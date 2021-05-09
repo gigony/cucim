@@ -34,6 +34,7 @@ public:
     uint32_t default_capacity() const;
     uint64_t default_memory_capacity() const;
     uint32_t default_mutex_pool_capacity() const;
+    uint32_t default_list_padding() const;
 
 private:
     std::unique_ptr<ImageCache> create_cache() const;

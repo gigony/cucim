@@ -38,6 +38,7 @@ struct EXPORT_VISIBLE ImageCacheConfig
     uint64_t memory_capacity = 0;
     uint32_t capacity = 0;
     uint32_t mutex_pool_capacity = 0;
+    uint32_t list_padding = 0;
     bool record_stat = false;
 };
 
