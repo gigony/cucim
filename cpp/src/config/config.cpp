@@ -16,6 +16,7 @@
 
 #include "cucim/config/config.h"
 
+#include "cucim/cache/cache_type.h"
 #include "cucim/util/file.h"
 
 #include <fmt/format.h>
@@ -49,6 +50,10 @@ Config::Config()
     }
 }
 
+cucim::cache::CacheType Config::cache_type() const
+{
+    return cache_type_;
+}
 uint32_t Config::cache_capacity() const
 {
     return cache_capacity_;
@@ -67,6 +72,11 @@ uint32_t Config::cache_mutex_pool_capacity() const
 uint32_t Config::cache_list_padding() const
 {
     return cache_list_padding_;
+}
+
+bool Config::cache_record_stat() const
+{
+    return cache_record_stat_;
 }
 
 std::string Config::shm_name() const
@@ -125,6 +135,11 @@ bool Config::parse_config(std::string& path)
         json cache = obj["cache"];
         if (cache.is_object())
         {
+            if (cache["type"].is_string())
+            {
+                auto cache_type = cache.value("type", kDefaultCacheType);
+                cache_type_ = cucim::cache::lookup_cache_type(cache_type);
+            }
             if (cache["memory_capacity"].is_number_unsigned())
             {
                 cache_memory_capacity_ = cache.value("memory_capacity", kDefaultCacheMemoryCapacity) * kOneMiB;
@@ -141,6 +156,10 @@ bool Config::parse_config(std::string& path)
             if (cache["list_padding"].is_number_unsigned())
             {
                 cache_list_padding_ = cache.value("list_padding", kDefaultCacheListPadding);
+            }
+            if (cache["record_stat"].is_boolean())
+            {
+                cache_record_stat_ = cache.value("record_stat", kDefaultCacheRecordStat);
             }
             fmt::print("# cache_capacity: {}\n", cache_capacity_);
             fmt::print("# cache_memory_capacity: {}\n", cache_memory_capacity_);

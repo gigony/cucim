@@ -64,6 +64,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/3rdparty/dlpack/dlpack.h
         include/cucim/3rdparty/dlpack/dlpackcpp.h
         src/cuimage.cpp
+        src/cache/cache_type.cpp
         src/cache/image_cache.cpp
         src/cache/image_cache_empty.h
         src/cache/image_cache_empty.cpp

@@ -18,6 +18,7 @@
 #define CUCIM_CACHE_IMAGE_CACHE_MANAGER_H
 
 #include "cucim/core/framework.h"
+
 #include "cucim/cache/image_cache.h"
 
 namespace cucim::cache
@@ -31,10 +32,12 @@ public:
     ImageCache* get_cache();
     void reserve(uint32_t new_capacity, uint64_t new_memory_capacity);
 
+    CacheType default_type() const;
     uint32_t default_capacity() const;
     uint64_t default_memory_capacity() const;
     uint32_t default_mutex_pool_capacity() const;
     uint32_t default_list_padding() const;
+    bool default_record_stat() const;
 
 private:
     std::unique_ptr<ImageCache> create_cache() const;
