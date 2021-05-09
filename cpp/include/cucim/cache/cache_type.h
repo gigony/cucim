@@ -17,7 +17,9 @@
 #ifndef CUCIM_CACHE_CACHE_TYPE_H
 #define CUCIM_CACHE_CACHE_TYPE_H
 
+#include <array>
 #include <cstdint>
+#include <string_view>
 
 namespace cucim::cache
 {
@@ -28,6 +30,16 @@ enum class CacheType : uint8_t
     kPerProcess,
     kSharedMemory
 };
+
+template <typename Key = std::string_view, typename Value = CacheType, std::size_t Size = 3>
+struct CacheTypeMap
+{
+    std::array<std::pair<Key, Value>, Size> data;
+
+    [[nodiscard]] constexpr Value at(const Key& key) const;
+};
+
+CacheType lookup_cache_type(const std::string_view sv);
 
 } // namespace cucim::cache
 
