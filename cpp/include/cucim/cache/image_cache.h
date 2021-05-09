@@ -34,11 +34,12 @@ namespace cucim::cache
 
 struct EXPORT_VISIBLE ImageCacheConfig
 {
-    CacheType cache_type = CacheType::kNoCache;
+    CacheType type = CacheType::kNoCache;
     uint64_t memory_capacity = 0;
     uint32_t capacity = 0;
     uint32_t mutex_pool_capacity = 0;
     uint32_t list_padding = 0;
+    uint32_t extra_shared_memory_size = 0;
     bool record_stat = false;
 };
 

@@ -37,6 +37,7 @@ public:
     uint64_t default_memory_capacity() const;
     uint32_t default_mutex_pool_capacity() const;
     uint32_t default_list_padding() const;
+    uint32_t default_extra_shared_memory_size() const;
     bool default_record_stat() const;
 
 private:

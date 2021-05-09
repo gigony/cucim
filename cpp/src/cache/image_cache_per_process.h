@@ -95,7 +95,7 @@ public:
 
 private:
     bool is_list_full() const;
-    bool is_memory_full() const;
+    bool is_memory_full(uint64_t additional_size = 0) const;
     void remove_front();
     void push_back(std::shared_ptr<PerProcessImageCacheItem>& item);
     bool erase(const std::shared_ptr<ImageCacheKey>& key);

@@ -24,6 +24,7 @@
 namespace cucim::cache
 {
 
+constexpr std::size_t kCacheTypeCount = 3;
 enum class CacheType : uint8_t
 {
     kNoCache,
@@ -31,12 +32,11 @@ enum class CacheType : uint8_t
     kSharedMemory
 };
 
-template <typename Key = std::string_view, typename Value = CacheType, std::size_t Size = 3>
 struct CacheTypeMap
 {
-    std::array<std::pair<Key, Value>, Size> data;
+    std::array<std::pair<std::string_view, CacheType>, kCacheTypeCount> data;
 
-    [[nodiscard]] constexpr Value at(const Key& key) const;
+    [[nodiscard]] constexpr CacheType at(const std::string_view& key) const;
 };
 
 CacheType lookup_cache_type(const std::string_view sv);

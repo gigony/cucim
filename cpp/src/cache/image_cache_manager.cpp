@@ -71,6 +71,11 @@ uint32_t ImageCacheManager::default_list_padding() const
     return cucim::CuImage::get_config()->cache_list_padding();
 }
 
+uint32_t ImageCacheManager::default_extra_shared_memory_size() const
+{
+    return cucim::CuImage::get_config()->cache_extra_shared_memory_size();
+}
+
 bool ImageCacheManager::default_record_stat() const
 {
     return cucim::CuImage::get_config()->cache_record_stat();
@@ -79,13 +84,25 @@ bool ImageCacheManager::default_record_stat() const
 std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
 {
     ImageCacheConfig cache_config;
-    cache_config.type = default_typ cache_config.capacity = default_capacity();
+    cache_config.type = default_type();
+    cache_config.capacity = default_capacity();
     cache_config.memory_capacity = default_memory_capacity();
     cache_config.mutex_pool_capacity = default_mutex_pool_capacity();
     cache_config.list_padding = default_list_padding();
+    cache_config.extra_shared_memory_size = default_extra_shared_memory_size();
     cache_config.record_stat = default_record_stat();
-    auto cache = std::make_unique<PerProcessImageCache>(cache_config);
-    return cache;
+
+    switch (cache_config.type)
+    {
+    case CacheType::kNoCache:
+        return std::make_unique<EmptyImageCache>(cache_config);
+    case CacheType::kPerProcess:
+        return std::make_unique<PerProcessImageCache>(cache_config);
+    case CacheType::kSharedMemory:
+        return std::make_unique<SharedMemoryImageCache>(cache_config);
+    default:
+        return std::make_unique<EmptyImageCache>(cache_config);
+    }
 }
 
 } // namespace cucim::cache

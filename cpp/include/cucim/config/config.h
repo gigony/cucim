@@ -30,10 +30,12 @@ namespace cucim::config
 
 constexpr const char* kDefaultConfigFileName = ".cucim.json";
 constexpr uint64_t kOneMiB = 1024UL * 1024;
+constexpr std::string_view kDefaultCacheTypeStr = "nocache";
 constexpr cucim::cache::CacheType kDefaultCacheType = cucim::cache::CacheType::kNoCache;
 constexpr uint64_t kDefaultCacheMemoryCapacity = 1024UL;
 constexpr uint32_t kDefaultCacheMutexPoolCapacity = 11117;
 constexpr uint32_t kDefaultCacheListPadding = 10000;
+constexpr uint32_t kDefaultCacheExtraSharedMemorySize = 100;
 constexpr bool kDefaultCacheRecordStat = false;
 // Assume that user uses memory block whose size is least 256 x 256 x 3 bytes.
 constexpr uint32_t calc_default_cache_capacity(uint64_t memory_capacity_in_bytes)
@@ -51,6 +53,7 @@ public:
     uint64_t cache_memory_capacity() const;
     uint32_t cache_mutex_pool_capacity() const;
     uint32_t cache_list_padding() const;
+    uint32_t cache_extra_shared_memory_size() const;
     bool cache_record_stat() const;
 
     std::string shm_name() const;
@@ -69,6 +72,7 @@ private:
     uint32_t cache_capacity_ = calc_default_cache_capacity(kDefaultCacheMemoryCapacity * kOneMiB);
     uint32_t cache_mutex_pool_capacity_ = kDefaultCacheMutexPoolCapacity;
     uint32_t cache_list_padding_ = kDefaultCacheListPadding;
+    uint32_t cache_extra_shared_memory_size_ = kDefaultCacheExtraSharedMemorySize;
     bool cache_record_stat_ = kDefaultCacheRecordStat;
 };
 

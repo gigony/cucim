@@ -152,7 +152,7 @@ public:
 
 private:
     bool is_list_full() const;
-    bool is_memory_full() const;
+    bool is_memory_full(uint64_t additional_size = 0) const;
     void remove_front();
     void push_back(cache_item_type<ImageCacheItemDetail>& item);
     bool erase(const std::shared_ptr<ImageCacheKey>& key);
@@ -163,7 +163,7 @@ private:
     static bool remove_shmem();
 
     uint32_t calc_hashmap_capacity(uint32_t capacity);
-    std::unique_ptr<boost::interprocess::managed_shared_memory> create_segment(uint32_t capacity, uint64_t mem_capacity);
+    std::unique_ptr<boost::interprocess::managed_shared_memory> create_segment(const ImageCacheConfig& config);
 
     std::unique_ptr<boost::interprocess::managed_shared_memory> segment_;
 
