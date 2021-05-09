@@ -80,6 +80,10 @@ PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
 
 PerProcessImageCache::~PerProcessImageCache()
 {
+    fmt::print(
+        "## memory_size: {}, memory_capacity: {}, free_memory: {}\n", memory_size(), memory_capacity(), free_memory());
+    fmt::print("## hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", stat_hit_, stat_miss_, stat_hit_ + stat_miss_,
+               size(), list_capacity_, hashmap_.size());
 }
 
 std::shared_ptr<ImageCacheKey> PerProcessImageCache::create_key(uint64_t file_hash, uint64_t index)
@@ -113,7 +117,7 @@ bool PerProcessImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::shar
         return false;
     }
 
-    while (is_list_full() || is_memory_full())
+    while (is_list_full() || is_memory_full(value->size))
     {
         remove_front();
     }
@@ -259,9 +263,9 @@ bool PerProcessImageCache::is_list_full() const
     return false;
 }
 
-bool PerProcessImageCache::is_memory_full() const
+bool PerProcessImageCache::is_memory_full(uint64_t additional_size) const
 {
-    if (size_nbytes_.load(std::memory_order_relaxed) >= capacity_nbytes_)
+    if (size_nbytes_.load(std::memory_order_relaxed) + additional_size > capacity_nbytes_)
     {
         return true;
     }

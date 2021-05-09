@@ -122,10 +122,12 @@ void shared_mem_deleter<T>::operator()(T* p)
 }
 
 // Apparently, cache requires about 13MiB + (400 bytes per one capacity) for the data structure (hashmap+vector).
-// so allocate additional bytes which are 20MiB (base) + 512(rough estimation per item) * (capacity) bytes.
-size_t calc_segment_size(uint32_t capacity, uint64_t mem_capacity)
+// so allocate additional bytes which are 100MiB (exta) + 512(rough estimation per item) * (capacity) bytes.
+// Not having enough segment(shared) memory can cause a memory allocation failure and the process can get stuck.
+// https://stackoverflow.com/questions/4166642/how-much-memory-should-managed-shared-memory-allocate-boost
+static size_t calc_segment_size(const ImageCacheConfig& config)
 {
-    return mem_capacity + (20 * cucim::config::kOneMiB + 512 * capacity);
+    return config.memory_capacity + (config.extra_shared_memory_size * cucim::config::kOneMiB + 512 * config.capacity);
 }
 
 template <class T>
@@ -169,7 +171,7 @@ SharedMemoryImageCacheValue::~SharedMemoryImageCacheValue()
 
 SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
     : ImageCache(config),
-      segment_(create_segment(config.capacity, config.memory_capacity)),
+      segment_(create_segment(config)),
       //   mutex_array_(nullptr, shared_mem_deleter<boost::interprocess::interprocess_mutex>(segment_)),
       size_nbytes_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
       capacity_nbytes_(nullptr, shared_mem_deleter<uint64_t>(segment_)),
@@ -248,7 +250,8 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
 SharedMemoryImageCache::~SharedMemoryImageCache()
 {
     {
-        fmt::print("## memory_size: {}, memory_capacity: {}\n", memory_size(), memory_capacity());
+        fmt::print("## memory_size: {}, memory_capacity: {}, free_memory: {}\n", memory_size(), memory_capacity(),
+                   free_memory());
         fmt::print("## {} hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", segment_->get_free_memory(), *stat_hit_,
                    *stat_miss_, *stat_hit_ + *stat_miss_, size(), *list_capacity_, hashmap_->size());
 
@@ -294,9 +297,14 @@ void* SharedMemoryImageCache::allocate(std::size_t n)
     void* temp = nullptr;
     try
     {
-        // fmt::print(stderr, "# {}: {} {}/{} ({})\n",
-        // std::chrono::high_resolution_clock::now().time_since_epoch().count(),
-        //            n, memory_size(), memory_capacity(), free_memory());
+        // fmt::print(stderr, "## pid: {} memory_size: {}, memory_capacity: {}, free_memory: {}\n", getpid(),
+        //            memory_size(), memory_capacity(), free_memory());
+        // fmt::print(
+        //     stderr, "## pid: {} size_nbytes: {}, capacity_nbytes: {}\n", getpid(), *size_nbytes_, *capacity_nbytes_);
+        // fmt::print(stderr, "## pid: {}, {} hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", getpid(),
+        //            segment_->get_free_memory(), *stat_hit_, *stat_miss_, *stat_hit_ + *stat_miss_, size(),
+        //            *list_capacity_, hashmap_->size());
+
         temp = segment_->allocate(n);
     }
     catch (const std::exception& e)
@@ -331,7 +339,7 @@ bool SharedMemoryImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::sh
         return false;
     }
 
-    while (is_list_full() || is_memory_full())
+    while (is_list_full() || is_memory_full(value->size))
     {
         remove_front();
     }
@@ -482,9 +490,9 @@ bool SharedMemoryImageCache::is_list_full() const
     return false;
 }
 
-bool SharedMemoryImageCache::is_memory_full() const
+bool SharedMemoryImageCache::is_memory_full(uint64_t additional_size) const
 {
-    if (size_nbytes_->load(std::memory_order_relaxed) >= *capacity_nbytes_)
+    if (size_nbytes_->load(std::memory_order_relaxed) + additional_size > *capacity_nbytes_)
     {
         return true;
     }
@@ -567,15 +575,14 @@ uint32_t SharedMemoryImageCache::calc_hashmap_capacity(uint32_t capacity)
     return std::max((1U << 16) * 4, capacity * 4);
 }
 
-std::unique_ptr<boost::interprocess::managed_shared_memory> SharedMemoryImageCache::create_segment(uint32_t capacity,
-                                                                                                   uint64_t mem_capacity)
+std::unique_ptr<boost::interprocess::managed_shared_memory> SharedMemoryImageCache::create_segment(
+    const ImageCacheConfig& config)
 {
     // Remove the existing shared memory object.
     remove_shmem();
 
     auto segment = std::make_unique<boost::interprocess::managed_shared_memory>(
-        boost::interprocess::open_or_create, cucim::CuImage::get_config()->shm_name().c_str(),
-        calc_segment_size(capacity, mem_capacity));
+        boost::interprocess::open_or_create, cucim::CuImage::get_config()->shm_name().c_str(), calc_segment_size(config));
     return segment;
 }
 
