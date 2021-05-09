@@ -42,8 +42,6 @@ bool equal_to<std::shared_ptr<cucim::cache::ImageCacheKey>>::operator()(
 namespace cucim::cache
 {
 
-constexpr uint32_t kListPadding = 64; /// additional buffer for multi-threaded environment
-
 struct PerProcessImageCacheItem
 {
     PerProcessImageCacheItem(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value)
@@ -71,10 +69,11 @@ PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
       mutex_array_(config.mutex_pool_capacity),
       capacity_nbytes_(config.memory_capacity),
       capacity_(config.capacity),
-      list_capacity_(config.capacity + kListPadding),
+      list_capacity_(config.capacity + config.list_padding),
+      list_padding_(config.list_padding),
       mutex_pool_capacity_(config.mutex_pool_capacity),
       stat_is_recorded_(config.record_stat),
-      list_(config.capacity + kListPadding),
+      list_(config.capacity + config.list_padding),
       hashmap_(config.capacity)
 {
 };
@@ -125,6 +124,10 @@ bool PerProcessImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::shar
     if (succeed)
     {
         push_back(item);
+    }
+    else
+    {
+        fmt::print(stderr, "{} existing list_[] = {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), (uint64_t)item->key->location_hash);
     }
     return succeed;
 }
@@ -188,7 +191,7 @@ void PerProcessImageCache::reserve(const ImageCacheConfig& config)
         uint32_t old_list_capacity = list_capacity_;
 
         capacity_ = new_capacity;
-        list_capacity_ = new_capacity + kListPadding;
+        list_capacity_ = new_capacity + list_padding_;
 
         list_.reserve(list_capacity_);
         list_.resize(list_capacity_);
@@ -280,14 +283,15 @@ void PerProcessImageCache::remove_front()
             if (list_head_.compare_exchange_weak(
                     head, (head + 1) % list_capacity_, std::memory_order_release, std::memory_order_relaxed))
             {
+                // fmt::print(stderr, "{} remove list_[{:05}]\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), head); //[print_list]
                 std::shared_ptr<PerProcessImageCacheItem> head_item = list_[head];
-                if (head_item)
-                {
-                    size_nbytes_.fetch_sub(head_item->value->size, std::memory_order_relaxed);
-                    hashmap_.erase(head_item->key);
-                    list_[head].reset(); // decrease refcount
-                    break;
-                }
+                // if (head_item) // it is possible that head_item is nullptr.
+                // {
+                size_nbytes_.fetch_sub(head_item->value->size, std::memory_order_relaxed);
+                hashmap_.erase(head_item->key);
+                list_[head].reset(); // decrease refcount
+                break;
+                    // }
             }
         }
         else
@@ -306,6 +310,7 @@ void PerProcessImageCache::push_back(std::shared_ptr<PerProcessImageCacheItem>& 
         if (list_tail_.compare_exchange_weak(
                 tail, (tail + 1) % list_capacity_, std::memory_order_release, std::memory_order_relaxed))
         {
+            // fmt::print(stderr, "{} list_[{:05}]={}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), tail, (uint64_t)item->key->location_hash); // [print_list]
             list_[tail] = item;
             size_nbytes_.fetch_add(item->value->size, std::memory_order_relaxed);
             break;

@@ -106,7 +106,8 @@ private:
     uint64_t capacity_nbytes_ = 0; /// size of cache memory allocated
     uint32_t capacity_ = 0; /// capacity of hashmap
     uint32_t list_capacity_ = 0; /// capacity of list
-    uint32_t mutex_pool_capacity_ = 0;
+    uint32_t list_padding_ = 0; /// gap between head and tail
+    uint32_t mutex_pool_capacity_ = 0; /// capacity of mutex pool
 
     std::atomic<uint64_t> stat_hit_ = 0; /// cache hit count
     std::atomic<uint64_t> stat_miss_ = 0; /// cache miss mcount

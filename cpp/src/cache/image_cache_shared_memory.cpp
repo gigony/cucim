@@ -83,8 +83,6 @@ struct std::equal_to<cucim::cache::MapKey>
 namespace cucim::cache
 {
 
-constexpr uint32_t kListPadding = 64; /// additional buffer for multi-threaded environment
-
 
 template <class P>
 struct null_deleter
@@ -177,6 +175,7 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
       capacity_nbytes_(nullptr, shared_mem_deleter<uint64_t>(segment_)),
       capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
       list_capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
+      list_padding_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
       mutex_pool_capacity_(nullptr, shared_mem_deleter<uint32_t>(segment_)),
       stat_hit_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
       stat_miss_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
@@ -205,9 +204,15 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
 
         capacity_.reset(segment_->find_or_construct<uint32_t>("capacity_")(capacity)); /// capacity
                                                                                        /// of hashmap
-        list_capacity_.reset(segment_->find_or_construct<uint32_t>("list_capacity_")(capacity + kListPadding)); /// capacity
-                                                                                                                /// of
-                                                                                                                /// list
+        list_capacity_.reset(
+            segment_->find_or_construct<uint32_t>("list_capacity_")(capacity + config.list_padding)); /// capacity
+                                                                                                      /// of
+                                                                                                      /// list
+
+        list_padding_.reset(segment_->find_or_construct<uint32_t>("list_padding_")(config.list_padding)); /// gap
+                                                                                                          /// between
+                                                                                                          /// head and
+                                                                                                          /// tail
 
         mutex_pool_capacity_.reset(segment_->find_or_construct<uint32_t>("mutex_pool_capacity_")(mutex_pool_capacity));
 
@@ -408,7 +413,7 @@ void SharedMemoryImageCache::reserve(const ImageCacheConfig& config)
         uint32_t old_list_capacity = (*list_capacity_);
 
         (*capacity_) = new_capacity;
-        (*list_capacity_) = new_capacity + kListPadding;
+        (*list_capacity_) = new_capacity + (*list_padding_);
 
         list_->reserve(*list_capacity_);
         list_->resize(*list_capacity_);

@@ -64,6 +64,11 @@ uint32_t Config::cache_mutex_pool_capacity() const
     return cache_mutex_pool_capacity_;
 }
 
+uint32_t Config::cache_list_padding() const
+{
+    return cache_list_padding_;
+}
+
 std::string Config::shm_name() const
 {
     return fmt::format("cucim-shm.{}", pid());
@@ -133,9 +138,14 @@ bool Config::parse_config(std::string& path)
             {
                 cache_mutex_pool_capacity_ = cache.value("mutex_pool_capacity", kDefaultCacheMutexPoolCapacity);
             }
+            if (cache["list_padding"].is_number_unsigned())
+            {
+                cache_list_padding_ = cache.value("list_padding", kDefaultCacheListPadding);
+            }
             fmt::print("# cache_capacity: {}\n", cache_capacity_);
             fmt::print("# cache_memory_capacity: {}\n", cache_memory_capacity_);
             fmt::print("# cache_mutex_pool_capacity: {}\n", cache_mutex_pool_capacity_);
+            fmt::print("# cache_list_padding: {}\n", cache_list_padding_);
         }
     }
     catch (const json::parse_error& e)

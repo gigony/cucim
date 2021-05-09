@@ -31,6 +31,7 @@ constexpr const char* kDefaultConfigFileName = ".cucim.json";
 constexpr uint64_t kOneMiB = 1024UL * 1024;
 constexpr uint64_t kDefaultCacheMemoryCapacity = 1024UL;
 constexpr uint32_t kDefaultCacheMutexPoolCapacity = 11117;
+constexpr uint32_t kDefaultCacheListPadding = 10000;
 // Assume that user uses memory block whose size is least 256 x 256 x 3 bytes.
 constexpr uint32_t calc_default_cache_capacity(uint64_t memory_capacity_in_bytes)
 {
@@ -45,6 +46,7 @@ public:
     uint32_t cache_capacity() const;
     uint64_t cache_memory_capacity() const;
     uint32_t cache_mutex_pool_capacity() const;
+    uint32_t cache_list_padding() const;
 
     std::string shm_name() const;
     pid_t pid() const;
@@ -61,6 +63,7 @@ private:
     uint64_t cache_memory_capacity_ = kDefaultCacheMemoryCapacity * kOneMiB;
     uint32_t cache_capacity_ = calc_default_cache_capacity(kDefaultCacheMemoryCapacity * kOneMiB);
     uint32_t cache_mutex_pool_capacity_ = kDefaultCacheMutexPoolCapacity;
+    uint32_t cache_list_padding_ = kDefaultCacheListPadding;
 };
 
 } // namespace cucim::config
