@@ -16,15 +16,16 @@
 
 #include "cucim_py.h"
 #include "cucim_pydoc.h"
-#include "io/init.h"
-#include "filesystem/init.h"
 
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
+#include "filesystem/init.h"
+#include "io/init.h"
 
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+
+#include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 using namespace pybind11::literals;
 namespace py = pybind11;

@@ -28,16 +28,20 @@
 namespace cucim::cache
 {
 
-ImageCacheManager::ImageCacheManager() : cache_(std::move(create_cache()))
+ImageCacheManager::ImageCacheManager() : cache_(create_cache())
 {
 }
 
-cucim::cache::ImageCache* ImageCacheManager::get_cache()
+ImageCache& ImageCacheManager::cache() const
 {
-    return cache_.get();
+    return *cache_;
+}
+std::shared_ptr<cucim::cache::ImageCache> ImageCacheManager::get_cache() const
+{
+    return cache_;
 }
 
-void ImageCacheManager::reserve(uint32_t new_capacity, uint64_t new_memory_capacity)
+void ImageCacheManager::reserve(uint32_t new_capacity, uint32_t new_memory_capacity)
 {
     ImageCacheConfig cache_config;
     cache_config.capacity = new_capacity;
@@ -46,52 +50,15 @@ void ImageCacheManager::reserve(uint32_t new_capacity, uint64_t new_memory_capac
     cache_->reserve(cache_config);
 }
 
-CacheType ImageCacheManager::default_type() const
-{
-    return cucim::CuImage::get_config()->cache_type();
-}
-
-uint32_t ImageCacheManager::default_capacity() const
-{
-    return cucim::CuImage::get_config()->cache_capacity();
-}
-
-uint64_t ImageCacheManager::default_memory_capacity() const
-{
-    return cucim::CuImage::get_config()->cache_memory_capacity();
-}
-
-uint32_t ImageCacheManager::default_mutex_pool_capacity() const
-{
-    return cucim::CuImage::get_config()->cache_mutex_pool_capacity();
-}
-
-uint32_t ImageCacheManager::default_list_padding() const
-{
-    return cucim::CuImage::get_config()->cache_list_padding();
-}
-
-uint32_t ImageCacheManager::default_extra_shared_memory_size() const
-{
-    return cucim::CuImage::get_config()->cache_extra_shared_memory_size();
-}
-
-bool ImageCacheManager::default_record_stat() const
-{
-    return cucim::CuImage::get_config()->cache_record_stat();
-}
-
 std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
 {
-    ImageCacheConfig cache_config;
-    cache_config.type = default_type();
-    cache_config.capacity = default_capacity();
-    cache_config.memory_capacity = default_memory_capacity();
-    cache_config.mutex_pool_capacity = default_mutex_pool_capacity();
-    cache_config.list_padding = default_list_padding();
-    cache_config.extra_shared_memory_size = default_extra_shared_memory_size();
-    cache_config.record_stat = default_record_stat();
+    ImageCacheConfig& cache_config = cucim::CuImage::get_config()->cache();
 
+    return create_cache(cache_config);
+}
+
+std::unique_ptr<ImageCache> ImageCacheManager::create_cache(ImageCacheConfig& cache_config) const
+{
     switch (cache_config.type)
     {
     case CacheType::kNoCache:

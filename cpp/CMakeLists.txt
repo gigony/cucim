@@ -39,6 +39,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/core/framework.cpp
         include/cucim/cuimage.h
         include/cucim/cache/image_cache.h
+        include/cucim/cache/image_cache_config.h
         include/cucim/cache/image_cache_manager.h
         include/cucim/codec/base64.h
         include/cucim/codec/hash_function.h
@@ -66,6 +67,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/cuimage.cpp
         src/cache/cache_type.cpp
         src/cache/image_cache.cpp
+        src/cache/image_cache_config.cpp
         src/cache/image_cache_empty.h
         src/cache/image_cache_empty.cpp
         src/cache/image_cache_manager.cpp
