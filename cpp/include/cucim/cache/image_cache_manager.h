@@ -29,21 +29,15 @@ class EXPORT_VISIBLE ImageCacheManager
 public:
     ImageCacheManager();
 
-    ImageCache* get_cache();
-    void reserve(uint32_t new_capacity, uint64_t new_memory_capacity);
-
-    CacheType default_type() const;
-    uint32_t default_capacity() const;
-    uint64_t default_memory_capacity() const;
-    uint32_t default_mutex_pool_capacity() const;
-    uint32_t default_list_padding() const;
-    uint32_t default_extra_shared_memory_size() const;
-    bool default_record_stat() const;
+    ImageCache& cache() const;
+    std::shared_ptr<ImageCache> get_cache() const;
+    void reserve(uint32_t new_capacity, uint32_t new_memory_capacity);
 
 private:
     std::unique_ptr<ImageCache> create_cache() const;
+    std::unique_ptr<ImageCache> create_cache(ImageCacheConfig& cache_config) const;
 
-    std::unique_ptr<ImageCache> cache_;
+    std::shared_ptr<ImageCache> cache_;
 };
 
 } // namespace cucim::cache

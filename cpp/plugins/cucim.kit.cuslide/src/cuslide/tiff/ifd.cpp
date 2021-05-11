@@ -33,8 +33,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-static cucim::cache::ImageCache* g_image_cache = cucim::CuImage::get_cache_manager()->get_cache();
-
 namespace cuslide::tiff
 {
 
@@ -351,7 +349,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
     {
         return read_region_tiles_boundary(tiff, ifd, sx, sy, w, h, raster, out_device);
     }
-    cucim::cache::ImageCache& image_cache = *g_image_cache;
+    cucim::cache::ImageCache& image_cache = cucim::CuImage::get_cache_manager()->cache();
 
     uint8_t background_value = tiff->background_value_;
     uint16_t compression_method = ifd->compression_;
@@ -550,7 +548,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
         memset(dest_start_ptr, background_value, w * h * pixel_size_nbytes);
         return true;
     }
-    cucim::cache::ImageCache& image_cache = *g_image_cache;
+    cucim::cache::ImageCache& image_cache = cucim::CuImage::get_cache_manager()->cache();
 
     uint32_t tw = ifd->tile_width_;
     uint32_t th = ifd->tile_height_;

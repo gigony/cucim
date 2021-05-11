@@ -50,38 +50,9 @@ Config::Config()
     }
 }
 
-cucim::cache::CacheType Config::cache_type() const
+cucim::cache::ImageCacheConfig& Config::cache()
 {
-    return cache_type_;
-}
-uint32_t Config::cache_capacity() const
-{
-    return cache_capacity_;
-}
-
-uint64_t Config::cache_memory_capacity() const
-{
-    return cache_memory_capacity_;
-}
-
-uint32_t Config::cache_mutex_pool_capacity() const
-{
-    return cache_mutex_pool_capacity_;
-}
-
-uint32_t Config::cache_list_padding() const
-{
-    return cache_list_padding_;
-}
-
-uint32_t Config::cache_extra_shared_memory_size() const
-{
-    return cache_extra_shared_memory_size_;
-}
-
-bool Config::cache_record_stat() const
-{
-    return cache_record_stat_;
+    return cache_;
 }
 
 std::string Config::shm_name() const
@@ -140,43 +111,7 @@ bool Config::parse_config(std::string& path)
         json cache = obj["cache"];
         if (cache.is_object())
         {
-            if (cache["type"].is_string())
-            {
-                auto cache_type = cache.value("type", kDefaultCacheTypeStr);
-                cache_type_ = cucim::cache::lookup_cache_type(cache_type);
-            }
-            if (cache["memory_capacity"].is_number_unsigned())
-            {
-                cache_memory_capacity_ = cache.value("memory_capacity", kDefaultCacheMemoryCapacity) * kOneMiB;
-                cache_capacity_ = calc_default_cache_capacity(cache_memory_capacity_);
-            }
-            if (cache["capacity"].is_number_unsigned())
-            {
-                cache_capacity_ = cache.value("capacity", calc_default_cache_capacity(cache_memory_capacity_));
-            }
-            if (cache["mutex_pool_capacity"].is_number_unsigned())
-            {
-                cache_mutex_pool_capacity_ = cache.value("mutex_pool_capacity", kDefaultCacheMutexPoolCapacity);
-            }
-            if (cache["list_padding"].is_number_unsigned())
-            {
-                cache_list_padding_ = cache.value("list_padding", kDefaultCacheListPadding);
-            }
-            if (cache["extra_shared_memory_size"].is_number_unsigned())
-            {
-                cache_extra_shared_memory_size_ =
-                    cache.value("extra_shared_memory_size", kDefaultCacheExtraSharedMemorySize);
-            }
-            if (cache["record_stat"].is_boolean())
-            {
-                cache_record_stat_ = cache.value("record_stat", kDefaultCacheRecordStat);
-            }
-            fmt::print("# cache_type: {}\n", cache_type_);
-            fmt::print("# cache_capacity: {}\n", cache_capacity_);
-            fmt::print("# cache_memory_capacity: {}\n", cache_memory_capacity_);
-            fmt::print("# cache_mutex_pool_capacity: {}\n", cache_mutex_pool_capacity_);
-            fmt::print("# cache_extra_shared_memory_size: {}\n", cache_extra_shared_memory_size_);
-            fmt::print("# cache_list_padding: {}\n", cache_list_padding_);
+            cache_.load_config(&cache);
         }
     }
     catch (const json::parse_error& e)

@@ -67,16 +67,14 @@ PerProcessImageCacheValue::~PerProcessImageCacheValue()
 PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
     : ImageCache(config),
       mutex_array_(config.mutex_pool_capacity),
-      capacity_nbytes_(config.memory_capacity),
+      capacity_nbytes_(kOneMiB * config.memory_capacity),
       capacity_(config.capacity),
       list_capacity_(config.capacity + config.list_padding),
       list_padding_(config.list_padding),
       mutex_pool_capacity_(config.mutex_pool_capacity),
       stat_is_recorded_(config.record_stat),
       list_(config.capacity + config.list_padding),
-      hashmap_(config.capacity)
-{
-};
+      hashmap_(config.capacity){};
 
 PerProcessImageCache::~PerProcessImageCache()
 {
@@ -188,7 +186,7 @@ uint64_t PerProcessImageCache::miss_count() const
 void PerProcessImageCache::reserve(const ImageCacheConfig& config)
 {
     uint32_t new_capacity = config.capacity;
-    uint64_t new_memory_capacity = config.memory_capacity;
+    uint64_t new_memory_capacity = kOneMiB * config.memory_capacity;
 
     if (capacity_ < new_capacity)
     {

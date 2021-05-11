@@ -127,7 +127,7 @@ void shared_mem_deleter<T>::operator()(T* p)
 // https://stackoverflow.com/questions/4166642/how-much-memory-should-managed-shared-memory-allocate-boost
 static size_t calc_segment_size(const ImageCacheConfig& config)
 {
-    return config.memory_capacity + (config.extra_shared_memory_size * cucim::config::kOneMiB + 512 * config.capacity);
+    return kOneMiB * config.memory_capacity + (config.extra_shared_memory_size * kOneMiB + 512 * config.capacity);
 }
 
 template <class T>
@@ -199,10 +199,11 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
 
         size_nbytes_.reset(segment_->find_or_construct<std::atomic<uint64_t>>("size_nbytes_")(0)); /// size of cache
                                                                                                    /// memory used
-        capacity_nbytes_.reset(segment_->find_or_construct<uint64_t>("capacity_nbytes_")(memory_capacity)); /// size of
-                                                                                                            /// cache
-                                                                                                            /// memory
-                                                                                                            /// allocated
+        capacity_nbytes_.reset(
+            segment_->find_or_construct<uint64_t>("capacity_nbytes_")(kOneMiB * memory_capacity)); /// size of
+                                                                                                   /// cache
+                                                                                                   /// memory
+                                                                                                   /// allocated
 
         capacity_.reset(segment_->find_or_construct<uint32_t>("capacity_")(capacity)); /// capacity
                                                                                        /// of hashmap
@@ -414,7 +415,7 @@ uint64_t SharedMemoryImageCache::miss_count() const
 void SharedMemoryImageCache::reserve(const ImageCacheConfig& config)
 {
     uint32_t new_capacity = config.capacity;
-    uint64_t new_memory_capacity = config.memory_capacity;
+    uint64_t new_memory_capacity = kOneMiB * config.memory_capacity;
 
     if ((*capacity_) < new_capacity)
     {

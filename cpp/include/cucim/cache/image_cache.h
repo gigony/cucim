@@ -20,6 +20,7 @@
 #include "cucim/core/framework.h"
 
 #include "cucim/cache/cache_type.h"
+#include "cucim/cache/image_cache_config.h"
 
 #include <memory>
 #include <atomic>
@@ -31,17 +32,6 @@
 
 namespace cucim::cache
 {
-
-struct EXPORT_VISIBLE ImageCacheConfig
-{
-    CacheType type = CacheType::kNoCache;
-    uint64_t memory_capacity = 0;
-    uint32_t capacity = 0;
-    uint32_t mutex_pool_capacity = 0;
-    uint32_t list_padding = 0;
-    uint32_t extra_shared_memory_size = 0;
-    bool record_stat = false;
-};
 
 struct EXPORT_VISIBLE ImageCacheKey
 {
@@ -70,7 +60,7 @@ struct EXPORT_VISIBLE ImageCacheValue
  *
  */
 
-class EXPORT_VISIBLE ImageCache
+class EXPORT_VISIBLE ImageCache : public std::enable_shared_from_this<ImageCache>
 {
 public:
     ImageCache(const ImageCacheConfig& config);
