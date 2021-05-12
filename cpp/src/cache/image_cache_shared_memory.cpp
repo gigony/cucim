@@ -170,7 +170,7 @@ SharedMemoryImageCacheValue::~SharedMemoryImageCacheValue()
 };
 
 SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
-    : ImageCache(config),
+    : ImageCache(config, CacheType::kSharedMemory),
       segment_(create_segment(config)),
       //   mutex_array_(nullptr, shared_mem_deleter<boost::interprocess::interprocess_mutex>(segment_)),
       size_nbytes_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
@@ -273,6 +273,11 @@ SharedMemoryImageCache::~SharedMemoryImageCache()
         fmt::print(stderr, "[Warning] Couldn't delete the shared memory object '{}'.",
                    cucim::CuImage::get_config()->shm_name());
     }
+}
+
+const char* SharedMemoryImageCache::type_str() const
+{
+    return "shared_memory";
 }
 
 std::shared_ptr<ImageCacheKey> SharedMemoryImageCache::create_key(uint64_t file_hash, uint64_t index)
@@ -393,6 +398,8 @@ uint64_t SharedMemoryImageCache::free_memory() const
 
 void SharedMemoryImageCache::record(bool value)
 {
+    config_.record_stat = value;
+
     stat_hit_->store(0, std::memory_order_relaxed);
     stat_miss_->store(0, std::memory_order_relaxed);
     *stat_is_recorded_ = value;
@@ -419,6 +426,9 @@ void SharedMemoryImageCache::reserve(const ImageCacheConfig& config)
 
     if ((*capacity_) < new_capacity)
     {
+        config_.capacity = config.capacity;
+        config_.memory_capacity = config.memory_capacity;
+
         uint32_t old_list_capacity = (*list_capacity_);
 
         (*capacity_) = new_capacity;

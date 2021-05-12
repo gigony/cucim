@@ -36,6 +36,27 @@ ImageCacheValue::operator bool() const
 }
 
 
-ImageCache::ImageCache(const ImageCacheConfig&){};
+ImageCache::ImageCache(const ImageCacheConfig& config, CacheType type) : type_(type), config_(config){};
+
+CacheType ImageCache::type() const
+{
+    return type_;
+}
+
+const char* ImageCache::type_str() const
+{
+    return "nocache";
+}
+
+ImageCacheConfig& ImageCache::config()
+{
+    return config_;
+}
+
+ImageCacheConfig ImageCache::get_config() const
+{
+    return config_;
+}
+
 
 } // namespace cucim::cache

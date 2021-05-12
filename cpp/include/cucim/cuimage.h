@@ -109,7 +109,9 @@ public:
 
     static Framework* get_framework();
     static config::Config* get_config();
-    static cache::ImageCacheManager* get_cache_manager();
+    static cache::ImageCacheManager& cache_manager();
+    static std::shared_ptr<cache::ImageCache> cache();
+    static std::shared_ptr<cache::ImageCache> cache(cache::ImageCacheConfig& config);
 
     filesystem::Path path() const;
 

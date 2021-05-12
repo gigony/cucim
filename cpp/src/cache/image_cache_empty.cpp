@@ -22,9 +22,6 @@ namespace cucim::cache
 
 EmptyImageCache::EmptyImageCache(const ImageCacheConfig& config) : ImageCache(config){};
 
-EmptyImageCache::~EmptyImageCache()
-{
-}
 
 std::shared_ptr<ImageCacheKey> EmptyImageCache::create_key(uint64_t, uint64_t)
 {

@@ -17,6 +17,7 @@
 #include "cucim_py.h"
 #include "cucim_pydoc.h"
 
+#include "cache/init.h"
 #include "filesystem/init.h"
 #include "io/init.h"
 
@@ -63,6 +64,10 @@ PYBIND11_MODULE(_cucim, m)
     auto m_fs = m.def_submodule("filesystem");
     filesystem::init_filesystem(m_fs);
 
+    // Submodule: cache
+    auto m_cache = m.def_submodule("cache");
+    cache::init_cache(m_cache);
+
     // Data structures
     py::enum_<DLDataTypeCode>(m, "DLDataTypeCode") //
         .value("DLInt", kDLInt) //
@@ -93,6 +98,8 @@ PYBIND11_MODULE(_cucim, m)
     py::class_<CuImage, std::shared_ptr<CuImage>>(m, "CuImage") //
         .def(py::init<const std::string&>(), doc::CuImage::doc_CuImage, py::call_guard<py::gil_scoped_release>(), //
              py::arg("path")) //
+        .def_static("cache", &py_cache, doc::CuImage::doc_cache, py::call_guard<py::gil_scoped_release>(), //
+                    py::arg("type") = py::none()) //
         .def_property("path", &CuImage::path, nullptr, doc::CuImage::doc_path, py::call_guard<py::gil_scoped_release>()) //
         .def_property("is_loaded", &CuImage::is_loaded, nullptr, doc::CuImage::doc_is_loaded,
                       py::call_guard<py::gil_scoped_release>()) //
@@ -182,6 +189,52 @@ pybind11::tuple vector2pytuple(const std::vector<T>& vec)
         PyTuple_SET_ITEM(result.ptr(), counter++, arg_value.release().ptr());
     }
     return result;
+}
+
+std::shared_ptr<cucim::cache::ImageCache> py_cache(py::object type, py::kwargs kwargs)
+{
+    if (py::isinstance<py::str>(type))
+    {
+        std::string ctype = std::string(py::cast<py::str>(type));
+
+        cucim::cache::CacheType cache_type = cucim::cache::lookup_cache_type(ctype);
+        // Copy default cache config to local
+        cucim::cache::ImageCacheConfig config = cucim::CuImage::get_config()->cache();
+        config.type = cache_type;
+
+        if (kwargs.contains("memory_capacity"))
+        {
+            config.memory_capacity = py::cast<uint32_t>(kwargs["memory_capacity"]);
+        }
+        if (kwargs.contains("capacity"))
+        {
+            config.capacity = py::cast<uint32_t>(kwargs["capacity"]);
+        }
+        if (kwargs.contains("mutex_pool_capacity"))
+        {
+            config.mutex_pool_capacity = py::cast<uint32_t>(kwargs["mutex_pool_capacity"]);
+        }
+        if (kwargs.contains("list_padding"))
+        {
+            config.list_padding = py::cast<uint32_t>(kwargs["list_padding"]);
+        }
+        if (kwargs.contains("extra_shared_memory_size"))
+        {
+            config.extra_shared_memory_size = py::cast<uint32_t>(kwargs["extra_shared_memory_size"]);
+        }
+        if (kwargs.contains("record_stat"))
+        {
+            config.record_stat = py::cast<bool>(kwargs["record_stat"]);
+        }
+        return CuImage::cache(config);
+    }
+    else if (type.is_none())
+    {
+        return CuImage::cache();
+    }
+
+    throw std::invalid_argument(
+        fmt::format("The first argument should be one of ['nocache', 'per_process', 'shared_memory']."));
 }
 
 json py_metadata(const CuImage& cuimg)

@@ -63,9 +63,21 @@ struct EXPORT_VISIBLE ImageCacheValue
 class EXPORT_VISIBLE ImageCache : public std::enable_shared_from_this<ImageCache>
 {
 public:
-    ImageCache(const ImageCacheConfig& config);
+    ImageCache(const ImageCacheConfig& config, CacheType type = CacheType::kNoCache);
     virtual ~ImageCache(){};
 
+    virtual CacheType type() const;
+    virtual const char* type_str() const;
+    virtual ImageCacheConfig& config();
+    virtual ImageCacheConfig get_config() const;
+
+    /**
+     * @brief Create a key object for the image cache.
+     *
+     * @param file_hash An hash value used for a specific file.
+     * @param index An hash value to locate a specific index/coordination in the image.
+     * @return std::shared_ptr<ImageCacheKey> A shared pointer containing %ImageCacheKey.
+     */
     virtual std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) = 0;
     virtual std::shared_ptr<ImageCacheValue> create_value(void* data, uint64_t size) = 0;
 
@@ -113,6 +125,10 @@ public:
     virtual void reserve(const ImageCacheConfig& config) = 0;
 
     virtual std::shared_ptr<ImageCacheValue> find(const std::shared_ptr<ImageCacheKey>& key) = 0;
+
+protected:
+    CacheType type_ = CacheType::kNoCache;
+    ImageCacheConfig config_;
 };
 
 } // namespace cucim::cache

@@ -17,6 +17,8 @@
 #ifndef CUCIM_CACHE_CACHE_TYPE_H
 #define CUCIM_CACHE_CACHE_TYPE_H
 
+#include "cucim/macros/api_header.h"
+
 #include <array>
 #include <cstdint>
 #include <string_view>
@@ -39,7 +41,17 @@ struct CacheTypeMap
     [[nodiscard]] constexpr CacheType at(const std::string_view& key) const;
 };
 
-CacheType lookup_cache_type(const std::string_view sv);
+EXPORT_VISIBLE CacheType lookup_cache_type(const std::string_view sv);
+
+struct CacheTypeStrMap
+{
+    std::array<std::pair<CacheType, std::string_view>, kCacheTypeCount> data;
+
+    [[nodiscard]] constexpr std::string_view at(const CacheType& key) const;
+};
+
+EXPORT_VISIBLE std::string_view lookup_cache_type_str(const CacheType type);
+
 
 } // namespace cucim::cache
 

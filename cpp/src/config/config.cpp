@@ -57,7 +57,7 @@ cucim::cache::ImageCacheConfig& Config::cache()
 
 std::string Config::shm_name() const
 {
-    return fmt::format("cucim-shm.{}", pid());
+    return fmt::format("cucim-shm.{}", pgid());
 }
 
 
@@ -68,6 +68,10 @@ pid_t Config::pid() const
 pid_t Config::ppid() const
 {
     return getppid();
+}
+pid_t Config::pgid() const
+{
+    return getpgid(getpid());
 }
 
 
@@ -94,9 +98,10 @@ std::string Config::get_config_path() const
     {
         if (const char* env_p = std::getenv("HOME"))
         {
-            if (cucim::util::file_exists(kDefaultConfigFileName))
+            auto home_path = (std::filesystem::path(env_p) / kDefaultConfigFileName).string();
+            if (cucim::util::file_exists(home_path.c_str()))
             {
-                config_path = env_p;
+                config_path = home_path;
             }
         }
     }

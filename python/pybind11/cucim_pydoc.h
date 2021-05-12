@@ -64,6 +64,11 @@ Constructor of CuImage.
 //
 // ~CuImage();
 
+// std::shared_ptr<cache::ImageCache> CuImage::cache()
+PYDOC(cache, R"doc(
+Get cache object.
+)doc")
+
 // filesystem::Path path() const;
 PYDOC(path, R"doc(
 Underlying file path for this object.
