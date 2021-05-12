@@ -58,13 +58,6 @@ void ImageCacheConfig::load_config(void* json_obj)
     {
         record_stat = cache_config.value("record_stat", kDefaultCacheRecordStat);
     }
-
-    fmt::print("# cache_type: {}\n", type);
-    fmt::print("# cache_capacity: {}\n", capacity);
-    fmt::print("# cache_memory_capacity: {}\n", memory_capacity);
-    fmt::print("# cache_mutex_pool_capacity: {}\n", mutex_pool_capacity);
-    fmt::print("# cache_extra_shared_memory_size: {}\n", extra_shared_memory_size);
-    fmt::print("# cache_list_padding: {}\n", list_padding);
 }
 
 } // namespace cucim::cache
