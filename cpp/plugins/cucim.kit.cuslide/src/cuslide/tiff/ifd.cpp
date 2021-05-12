@@ -350,6 +350,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
         return read_region_tiles_boundary(tiff, ifd, sx, sy, w, h, raster, out_device);
     }
     cucim::cache::ImageCache& image_cache = cucim::CuImage::cache_manager().cache();
+    cucim::cache::CacheType cache_type = image_cache.type();
 
     uint8_t background_value = tiff->background_value_;
     uint16_t compression_method = ifd->compression_;
@@ -388,7 +389,11 @@ bool IFD::read_region_tiles(const TIFF* tiff,
     const int pixel_format = TJPF_RGB; // TODO: support other pixel format
     const int pixel_size_nbytes = tjPixelSize[pixel_format];
     const size_t tile_raster_nbytes = tw * th * pixel_size_nbytes;
-    uint8_t* tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+    uint8_t* tile_raster = nullptr;
+    if (cache_type == cucim::cache::CacheType::kNoCache)
+    {
+        tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+    }
 
     int tiff_file = tiff->file_handle_.fd;
     uint64_t ifd_hash_value = ifd->hash_value_; //[cache]
@@ -461,7 +466,10 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                 { //[cache]
                     // Lifetime of tile_data is same with `value`
                     // : do not access this data when `value` is not accessible.
-                    tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes)); //[cache]
+                    if (cache_type != cucim::cache::CacheType::kNoCache)
+                    {
+                        tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes)); //[cache]
+                    }
 
                      //fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data); // [print_process]
                     //fmt::print(stderr, "# {} {} not found: {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), index, (uint64_t)tile_data); // [print_thread]
@@ -509,7 +517,10 @@ bool IFD::read_region_tiles(const TIFF* tiff,
         dest_start_ptr += dest_pixel_step_y * dest_pixel_offset_len_y;
     }
 
-    cucim_free(tile_raster);
+    if (tile_raster)
+    {
+        cucim_free(tile_raster);
+    }
 
     return true;
 }
@@ -549,12 +560,17 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
         return true;
     }
     cucim::cache::ImageCache& image_cache = cucim::CuImage::cache_manager().cache();
+    cucim::cache::CacheType cache_type = image_cache.type();
 
     uint32_t tw = ifd->tile_width_;
     uint32_t th = ifd->tile_height_;
 
     const size_t tile_raster_nbytes = tw * th * pixel_size_nbytes;
-    uint8_t* tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+    uint8_t* tile_raster = nullptr;
+    if (cache_type == cucim::cache::CacheType::kNoCache)
+    {
+        tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
+    }
 
     // TODO: revert this once we can get RGB data instead of RGBA
     uint32_t samples_per_pixel = 3; // ifd->samples_per_pixel();
@@ -720,7 +736,10 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                 { //[cache]
                     // Lifetime of tile_data is same with `value`
                     // : do not access this data when `value` is not accessible.
-                    tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes)); //[cache]
+                    if (cache_type != cucim::cache::CacheType::kNoCache)
+                    {
+                        tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes)); //[cache]
+                    }
 
                      //fmt::print(stderr, "# {} {} not found: {}\n", getpid(), index, (uint64_t)tile_data); // [print_process]
                     //fmt::print(stderr, "# {} {} notfound: {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), index, (uint64_t)tile_data); // [print_thread]
@@ -800,8 +819,10 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
         }
         dest_start_ptr += dest_pixel_step_y * dest_pixel_offset_len_y;
     }
-
-    cucim_free(tile_raster);
+    if (tile_raster)
+    {
+        cucim_free(tile_raster);
+    }
     return true;
 }
 

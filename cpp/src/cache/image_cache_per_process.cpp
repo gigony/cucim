@@ -78,10 +78,6 @@ PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
 
 PerProcessImageCache::~PerProcessImageCache()
 {
-    fmt::print(
-        "## memory_size: {}, memory_capacity: {}, free_memory: {}\n", memory_size(), memory_capacity(), free_memory());
-    fmt::print("## hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", stat_hit_, stat_miss_, stat_hit_ + stat_miss_,
-               size(), list_capacity_, hashmap_.size());
 }
 
 const char* PerProcessImageCache::type_str() const

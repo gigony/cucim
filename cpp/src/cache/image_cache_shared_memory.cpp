@@ -251,11 +251,6 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
 SharedMemoryImageCache::~SharedMemoryImageCache()
 {
     {
-        fmt::print("## memory_size: {}, memory_capacity: {}, free_memory: {}\n", memory_size(), memory_capacity(),
-                   free_memory());
-        fmt::print("## {} hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", segment_->get_free_memory(), *stat_hit_,
-                   *stat_miss_, *stat_hit_ + *stat_miss_, size(), *list_capacity_, hashmap_->size());
-
         // Destroy objects that uses the shared memory object(segment_)
         hashmap_.reset();
         list_.reset();
