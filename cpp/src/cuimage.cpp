@@ -259,9 +259,19 @@ config::Config* CuImage::get_config()
     return config_.get();
 }
 
-cache::ImageCacheManager* CuImage::get_cache_manager()
+cache::ImageCacheManager& CuImage::cache_manager()
 {
-    return cache_manager_.get();
+    return *cache_manager_;
+}
+
+std::shared_ptr<cache::ImageCache> CuImage::cache()
+{
+    return cache_manager_->get_cache();
+}
+
+std::shared_ptr<cache::ImageCache> CuImage::cache(cache::ImageCacheConfig& config)
+{
+    return cache_manager_->cache(config);
 }
 
 filesystem::Path CuImage::path() const

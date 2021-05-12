@@ -30,12 +30,13 @@ public:
     ImageCacheManager();
 
     ImageCache& cache() const;
+    std::shared_ptr<ImageCache> cache(const ImageCacheConfig& config);
     std::shared_ptr<ImageCache> get_cache() const;
     void reserve(uint32_t new_capacity, uint32_t new_memory_capacity);
 
 private:
     std::unique_ptr<ImageCache> create_cache() const;
-    std::unique_ptr<ImageCache> create_cache(ImageCacheConfig& cache_config) const;
+    std::unique_ptr<ImageCache> create_cache(const ImageCacheConfig& cache_config) const;
 
     std::shared_ptr<ImageCache> cache_;
 };

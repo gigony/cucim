@@ -36,6 +36,13 @@ ImageCache& ImageCacheManager::cache() const
 {
     return *cache_;
 }
+
+std::shared_ptr<cucim::cache::ImageCache> ImageCacheManager::cache(const ImageCacheConfig& config)
+{
+    cache_ = create_cache(config);
+    return cache_;
+}
+
 std::shared_ptr<cucim::cache::ImageCache> ImageCacheManager::get_cache() const
 {
     return cache_;
@@ -57,7 +64,7 @@ std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
     return create_cache(cache_config);
 }
 
-std::unique_ptr<ImageCache> ImageCacheManager::create_cache(ImageCacheConfig& cache_config) const
+std::unique_ptr<ImageCache> ImageCacheManager::create_cache(const ImageCacheConfig& cache_config) const
 {
     switch (cache_config.type)
     {

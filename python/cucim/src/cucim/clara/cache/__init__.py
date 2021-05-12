@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2020-2021, NVIDIA CORPORATION.
+# Copyright (c) 2021, NVIDIA CORPORATION.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -13,21 +13,6 @@
 # limitations under the License.
 #
 
-import os
+from cucim.clara._cucim.cache import *
 
-from . import cli
-from . import converter
-# import hidden methods
-from ._cucim import CuImage
-from ._cucim import __version__
-from ._cucim import filesystem
-from ._cucim import io
-from ._cucim import cache
-
-__all__ = ['cli', 'CuImage', 'filesystem', 'io', 'cache', 'converter', '__version__']
-
-
-from ._cucim import _get_plugin_root  # isort:skip
-from ._cucim import _set_plugin_root  # isort:skip
-# Set plugin root path
-_set_plugin_root(os.path.dirname(os.path.realpath(__file__)))
+__all__ = ['CacheType', 'ImageCache']

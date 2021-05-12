@@ -65,7 +65,7 @@ PerProcessImageCacheValue::~PerProcessImageCacheValue()
 };
 
 PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
-    : ImageCache(config),
+    : ImageCache(config, CacheType::kPerProcess),
       mutex_array_(config.mutex_pool_capacity),
       capacity_nbytes_(kOneMiB * config.memory_capacity),
       capacity_(config.capacity),
@@ -82,6 +82,11 @@ PerProcessImageCache::~PerProcessImageCache()
         "## memory_size: {}, memory_capacity: {}, free_memory: {}\n", memory_size(), memory_capacity(), free_memory());
     fmt::print("## hit:{} miss:{} total:{} | {}/{}  hash size:{}\n", stat_hit_, stat_miss_, stat_hit_ + stat_miss_,
                size(), list_capacity_, hashmap_.size());
+}
+
+const char* PerProcessImageCache::type_str() const
+{
+    return "per_process";
 }
 
 std::shared_ptr<ImageCacheKey> PerProcessImageCache::create_key(uint64_t file_hash, uint64_t index)
@@ -164,6 +169,8 @@ uint64_t PerProcessImageCache::free_memory() const
 
 void PerProcessImageCache::record(bool value)
 {
+    config_.record_stat = value;
+
     stat_hit_.store(0, std::memory_order_relaxed);
     stat_miss_.store(0, std::memory_order_relaxed);
     stat_is_recorded_ = value;
@@ -190,6 +197,9 @@ void PerProcessImageCache::reserve(const ImageCacheConfig& config)
 
     if (capacity_ < new_capacity)
     {
+        config_.capacity = config.capacity;
+        config_.memory_capacity = config.memory_capacity;
+
         uint32_t old_list_capacity = list_capacity_;
 
         capacity_ = new_capacity;

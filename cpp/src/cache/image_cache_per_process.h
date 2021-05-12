@@ -67,6 +67,8 @@ public:
     PerProcessImageCache(const ImageCacheConfig& config);
     ~PerProcessImageCache();
 
+    const char* type_str() const override;
+
     std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) override;
     std::shared_ptr<ImageCacheValue> create_value(void* data, uint64_t size) override;
 

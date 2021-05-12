@@ -46,6 +46,8 @@ void set_plugin_root(std::string path);
 template<typename PT, typename T>
 pybind11::tuple vector2pytuple(const std::vector<T>& vec);
 
+std::shared_ptr<cucim::cache::ImageCache> py_cache(py::object ctype, py::kwargs kwargs);
+
 json py_metadata(const CuImage& cuimg);
 py::dict py_resolutions(const CuImage& cuimg);
 CuImage py_read_region(CuImage& cuimg,

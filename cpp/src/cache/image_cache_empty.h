@@ -33,7 +33,6 @@ class EmptyImageCache : public ImageCache
 {
 public:
     EmptyImageCache(const ImageCacheConfig& config);
-    ~EmptyImageCache();
 
     std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) override;
     std::shared_ptr<ImageCacheValue> create_value(void* data, uint64_t size) override;
@@ -60,6 +59,9 @@ public:
     void reserve(const ImageCacheConfig& config) override;
 
     std::shared_ptr<ImageCacheValue> find(const std::shared_ptr<ImageCacheKey>& key) override;
+
+private:
+    ImageCacheConfig config_;
 };
 
 } // namespace cucim::cache
