@@ -1,6 +1,11 @@
 
 # Changelog
 
+
+## 0.19.1 (2021-05-19)
+
+- Fix a memory leak in Deflate decoder.
+
 ## 0.19.0 (2021-04-19)
 
 - The first release of cuClaraImage + [cupyimg](https://github.com/mritools/cupyimg) as a single project `cuCIM`.
