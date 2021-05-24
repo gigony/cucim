@@ -275,6 +275,13 @@ json py_metadata(const CuImage& cuimg)
         }
         resolutions_metadata.emplace("level_dimensions", level_dimensions_vec);
         resolutions_metadata.emplace("level_downsamples", resolutions.level_downsamples());
+        std::vector<std::vector<uint32_t>> level_tile_sizes_vec;
+        level_tile_sizes_vec.reserve(level_count);
+        for (int level = 0; level < level_count; ++level)
+        {
+            level_tile_sizes_vec.emplace_back(resolutions.level_tile_size(level));
+        }
+        resolutions_metadata.emplace("level_tile_sizes", level_tile_sizes_vec);
     }
     cucim_metadata.emplace("associated_images", cuimg.associated_images());
     return json_obj;
@@ -289,7 +296,8 @@ py::dict py_resolutions(const CuImage& cuimg)
         return py::dict{
             "level_count"_a = pybind11::int_(0), //
             "level_dimensions"_a = pybind11::tuple(), //
-            "level_downsamples"_a = pybind11::tuple() //
+            "level_downsamples"_a = pybind11::tuple(), //
+            "level_tile_sizes"_a = pybind11::tuple() //
         };
     }
 
@@ -302,11 +310,13 @@ py::dict py_resolutions(const CuImage& cuimg)
 
     py::tuple level_dimensions = vector2pytuple<const pybind11::tuple&>(level_dimensions_vec);
     py::tuple level_downsamples = vector2pytuple<pybind11::float_>(resolutions.level_downsamples());
+    py::tuple level_tile_sizes = vector2pytuple<pybind11::int_>(resolutions.level_tile_sizes());
 
     return py::dict{
         "level_count"_a = pybind11::int_(level_count), //
         "level_dimensions"_a = level_dimensions, //
-        "level_downsamples"_a = level_downsamples //
+        "level_downsamples"_a = level_downsamples, //
+        "level_tile_sizes"_a = level_tile_sizes //
     };
 }
 

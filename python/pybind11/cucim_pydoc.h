@@ -176,6 +176,7 @@ Returns a dict that includes resolution information.
 - level_count: The number of levels
 - level_dimensions: A tuple of dimension tuples (width, height)
 - level_downsamples: A tuple of down-sample factors
+- level_tile_sizes: A tuple of tile size tuple (tile width, tile_height)
 )doc")
 
 // dlpack::DLTContainer container() const;

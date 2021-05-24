@@ -70,12 +70,15 @@ public:
     std::vector<int64_t> level_dimension(uint16_t level) const;
     const std::vector<float>& level_downsamples() const;
     float level_downsample(uint16_t level) const;
+    const std::vector<uint32_t>& level_tile_sizes() const;
+    std::vector<uint32_t> level_tile_size(uint16_t level) const;
 
 private:
     uint16_t level_count_;
     uint16_t level_ndim_;
     std::vector<int64_t> level_dimensions_;
     std::vector<float> level_downsamples_;
+    std::vector<uint32_t> level_tile_sizes_;
 };
 
 /**

@@ -69,6 +69,8 @@ ResolutionInfo::ResolutionInfo(io::format::ResolutionInfoDesc desc)
         level_dimensions_.end(), &desc.level_dimensions[0], &desc.level_dimensions[level_count_ * level_ndim_]);
     level_downsamples_.insert(
         level_downsamples_.end(), &desc.level_downsamples[0], &desc.level_downsamples[level_count_]);
+    level_tile_sizes_.insert(
+        level_tile_sizes_.end(), &desc.level_tile_sizes[0], &desc.level_tile_sizes[level_count_ * level_ndim_]);
 }
 uint16_t ResolutionInfo::level_count() const
 {
@@ -100,6 +102,21 @@ float ResolutionInfo::level_downsample(uint16_t level) const
         throw std::invalid_argument(fmt::format("'level' should be less than {}", level_count_));
     }
     return level_downsamples_.at(level);
+}
+const std::vector<uint32_t>& ResolutionInfo::level_tile_sizes() const
+{
+    return level_tile_sizes_;
+}
+std::vector<uint32_t> ResolutionInfo::level_tile_size(uint16_t level) const
+{
+    if (level >= level_count_)
+    {
+        throw std::invalid_argument(fmt::format("'level' should be less than {}", level_count_));
+    }
+    std::vector<uint32_t> result;
+    auto start_index = level_tile_sizes_.begin() + (level * level_ndim_);
+    result.insert(result.end(), start_index, start_index + level_ndim_);
+    return result;
 }
 
 DetectedFormat detect_format(filesystem::Path path)
@@ -678,6 +695,10 @@ CuImage CuImage::read_region(std::vector<int64_t> location,
     level_downsamples.reserve(1);
     level_downsamples.emplace_back(1.0);
 
+    std::pmr::vector<uint32_t> level_tile_sizes(&resource);
+    level_tile_sizes.reserve(level_ndim * 1); // it has only one size
+    level_tile_sizes.insert(level_tile_sizes.end(), &size[0], &size[level_ndim]); // same with level_dimension
+
     // Empty associated images
     const size_t associated_image_count = 0;
     std::pmr::vector<std::string_view> associated_image_names(&resource);
@@ -701,6 +722,7 @@ CuImage CuImage::read_region(std::vector<int64_t> location,
     out_metadata.level_ndim(2);
     out_metadata.level_dimensions(level_dimensions);
     out_metadata.level_downsamples(level_downsamples);
+    out_metadata.level_tile_sizes(level_tile_sizes);
     out_metadata.image_count(associated_image_count);
     out_metadata.image_names(associated_image_names);
     out_metadata.raw_data(raw_data);
