@@ -17,16 +17,17 @@
 #include "cucim_py.h"
 #include "cucim_pydoc.h"
 
-#include "cache/init.h"
-#include "filesystem/init.h"
-#include "io/init.h"
-
 #include <fmt/format.h>
 #include <fmt/ranges.h>
-
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
+#include <cucim/cuimage.h>
+
+#include "cache/init.h"
+#include "filesystem/init.h"
+#include "io/init.h"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -209,6 +210,11 @@ std::shared_ptr<cucim::cache::ImageCache> py_cache(py::object type, py::kwargs k
         if (kwargs.contains("capacity"))
         {
             config.capacity = py::cast<uint32_t>(kwargs["capacity"]);
+        }
+        else
+        {
+            // Update capacity depends on memory_capacity.
+            config.capacity = cucim::cache::calc_default_cache_capacity(cucim::cache::kOneMiB * config.memory_capacity);
         }
         if (kwargs.contains("mutex_pool_capacity"))
         {

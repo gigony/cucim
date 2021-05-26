@@ -189,7 +189,7 @@ uint64_t PerProcessImageCache::miss_count() const
 void PerProcessImageCache::reserve(const ImageCacheConfig& config)
 {
     uint32_t new_capacity = config.capacity;
-    uint64_t new_memory_capacity = kOneMiB * config.memory_capacity;
+    uint64_t new_memory_capacity_nbytes = kOneMiB * config.memory_capacity;
 
     if (capacity_ < new_capacity)
     {
@@ -226,9 +226,9 @@ void PerProcessImageCache::reserve(const ImageCacheConfig& config)
         }
     }
 
-    if (capacity_nbytes_ < new_memory_capacity)
+    if (capacity_nbytes_ < new_memory_capacity_nbytes)
     {
-        capacity_nbytes_ = new_memory_capacity;
+        capacity_nbytes_ = new_memory_capacity_nbytes;
     }
 }
 

@@ -15,11 +15,14 @@
  */
 
 #include "init.h"
+
+#include <cucim/cache/image_cache.h>
+#include <cucim/cuimage.h>
+#include <pybind11/stl.h>
+
 #include "cache_pydoc.h"
 #include "image_cache_py.h"
 #include "image_cache_pydoc.h"
-
-#include <cucim/cache/image_cache.h>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -54,7 +57,16 @@ void init_cache(py::module& cache)
                       py::call_guard<py::gil_scoped_release>())
         .def_property("miss_count", &ImageCache::miss_count, nullptr, doc::ImageCache::doc_miss_count,
                       py::call_guard<py::gil_scoped_release>())
-        .def("reserve", &ImageCache::reserve, doc::ImageCache::doc_reserve, py::call_guard<py::gil_scoped_release>());
+        .def("reserve", &py_image_cache_reserve, doc::ImageCache::doc_reserve, py::call_guard<py::gil_scoped_release>(), //
+             py::arg("memory_capacity"));
+
+    cache.def("preferred_memory_capacity", &py_preferred_memory_capacity, doc::doc_preferred_memory_capacity, //
+              py::arg("img") = py::none(), //
+              py::arg("image_size") = std::nullopt, //
+              py::arg("tile_size") = std::nullopt, //
+              py::arg("patch_size") = std::nullopt, //
+              py::arg("bytes_per_pixel") = 3, //
+              py::call_guard<py::gil_scoped_release>());
 }
 
 bool py_record(ImageCache& cache, py::object value)
@@ -88,6 +100,89 @@ py::dict py_config(ImageCache& cache)
         "extra_shared_memory_size"_a = pybind11::int_(config.extra_shared_memory_size), //
         "record_stat"_a = pybind11::bool_(config.record_stat) //
     };
+}
+
+void py_image_cache_reserve(ImageCache& cache, uint32_t memory_capacity, py::kwargs kwargs)
+{
+    cucim::cache::ImageCacheConfig config = cucim::CuImage::get_config()->cache();
+    config.memory_capacity = memory_capacity;
+
+    if (kwargs.contains("capacity"))
+    {
+        config.capacity = py::cast<uint32_t>(kwargs["capacity"]);
+    }
+    else
+    {
+        // Update capacity depends on memory_capacity.
+        config.capacity = calc_default_cache_capacity(kOneMiB * memory_capacity);
+    }
+
+    cache.reserve(config);
+}
+
+py::int_ py_preferred_memory_capacity(const py::object& img,
+                                      const std::optional<const std::vector<uint32_t>>& image_size,
+                                      const std::optional<const std::vector<uint32_t>>& tile_size,
+                                      const std::optional<const std::vector<uint32_t>>& patch_size,
+                                      uint32_t bytes_per_pixel)
+{
+
+    std::vector<uint32_t> param_image;
+    std::vector<uint32_t> param_tile;
+    std::vector<uint32_t> param_patch;
+
+    if (!img.is_none())
+    {
+        const CuImage& cuimg = *img.cast<cucim::CuImage*>();
+        std::vector<int64_t> image_size_vec = cuimg.size("XY");
+        param_image.insert(param_image.end(), image_size_vec.begin(), image_size_vec.end());
+        std::vector<uint32_t> tile_size_vec = cuimg.resolutions().level_tile_size(0);
+        param_tile.insert(param_tile.end(), tile_size_vec.begin(), tile_size_vec.end());
+
+        // Calculate pixel size in bytes
+        // (For example, if axes == "YXC" or "YXS", calculate [bytes per pixel] * [# items inside dims after 'X'] )
+        std::string dims = cuimg.dims();
+        std::size_t pivot = std::max(dims.rfind('X'), dims.rfind('Y'));
+        if (pivot == std::string::npos)
+        {
+            bytes_per_pixel = 3;
+        }
+        else
+        {
+            if (pivot < dims.size())
+            {
+                std::vector<int64_t> size_vec = cuimg.size(&dims.c_str()[pivot + 1]);
+                int64_t item_count = 1;
+                for (auto size : size_vec)
+                {
+                    item_count *= size;
+                }
+                bytes_per_pixel = (cuimg.dtype().bits * item_count + 7) / 8;
+            }
+        }
+    }
+    else
+    {
+        if (!image_size || image_size->size() != 2)
+        {
+            throw std::invalid_argument(
+                fmt::format("Please specify 'image_size' parameter (e.g., 'image_size=(100000, 100000)')!"));
+        }
+        if (!tile_size || tile_size->size() != 2)
+        {
+            param_tile = { kDefaultTileSize, kDefaultTileSize };
+        }
+    }
+
+    if (!patch_size || patch_size->size() != 2)
+    {
+        param_patch = { kDefaultPatchSize, kDefaultPatchSize };
+    }
+
+    return preferred_memory_capacity(!param_image.empty() ? param_image : image_size.value(), //
+                                     !param_tile.empty() ? param_tile : tile_size.value(), //
+                                     !param_patch.empty() ? param_patch : patch_size.value(), //
+                                     bytes_per_pixel);
 }
 
 } // namespace cucim::cache

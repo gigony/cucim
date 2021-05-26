@@ -17,16 +17,26 @@
 #ifndef PYCUCIM_CUIMAGE_PY_H
 #define PYCUCIM_CUIMAGE_PY_H
 
-#include <pybind11_json/pybind11_json.hpp>
-#include <nlohmann/json.hpp>
 #include <vector>
 
-#include <cucim/cuimage.h>
+#include <nlohmann/json.hpp>
+#include <pybind11_json/pybind11_json.hpp>
 
 using json = nlohmann::json;
 
 namespace cucim
 {
+
+// Forward declarations
+class CuImage;
+namespace io
+{
+class Device;
+}
+namespace cache
+{
+class ImageCache;
+}
 
 std::string get_plugin_root();
 void set_plugin_root(std::string path);
