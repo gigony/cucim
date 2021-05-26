@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -152,13 +152,13 @@ public:
 
     memory::DLTContainer container() const;
 
-    CuImage read_region(std::vector<int64_t> location,
-                        std::vector<int64_t> size,
+    CuImage read_region(std::vector<int64_t>&& location,
+                        std::vector<int64_t>&& size,
                         uint16_t level = 0,
-                        DimIndices region_dim_indices = {},
-                        io::Device device = "cpu",
+                        const DimIndices& region_dim_indices = {},
+                        const io::Device& device = "cpu",
                         DLTensor* buf = nullptr,
-                        std::string shm_name = std::string{});
+                        const std::string& shm_name = std::string{}) const;
 
     std::set<std::string> associated_images() const;
     CuImage associated_image(const std::string& name) const;

@@ -519,17 +519,14 @@ memory::DLTContainer CuImage::container() const
     }
 }
 
-CuImage CuImage::read_region(std::vector<int64_t> location,
-                             std::vector<int64_t> size,
+CuImage CuImage::read_region(std::vector<int64_t>&& location,
+                             std::vector<int64_t>&& size,
                              uint16_t level,
-                             DimIndices region_dim_indices,
-                             io::Device device,
+                             const DimIndices& region_dim_indices,
+                             const io::Device& device,
                              DLTensor* buf,
-                             std::string shm_name)
+                             const std::string& shm_name) const
 {
-    (void)location;
-    (void)size;
-    (void)level;
     (void)region_dim_indices;
     (void)device;
     (void)buf;

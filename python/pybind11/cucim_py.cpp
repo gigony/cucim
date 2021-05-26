@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -192,7 +192,7 @@ pybind11::tuple vector2pytuple(const std::vector<T>& vec)
     return result;
 }
 
-std::shared_ptr<cucim::cache::ImageCache> py_cache(py::object type, py::kwargs kwargs)
+std::shared_ptr<cucim::cache::ImageCache> py_cache(const py::object& type, const py::kwargs& kwargs)
 {
     if (py::isinstance<py::str>(type))
     {
@@ -327,14 +327,14 @@ py::dict py_resolutions(const CuImage& cuimg)
 }
 
 
-CuImage py_read_region(CuImage& cuimg,
-                       std::vector<int64_t> location,
-                       std::vector<int64_t> size,
+CuImage py_read_region(const CuImage& cuimg,
+                       std::vector<int64_t>&& location,
+                       std::vector<int64_t>&& size,
                        int16_t level,
-                       io::Device device,
-                       py::object buf,
+                       const io::Device& device,
+                       const py::object& buf,
                        const std::string& shm_name,
-                       py::kwargs kwargs)
+                       const py::kwargs& kwargs)
 {
     cucim::DimIndices indices;
     if (kwargs)
@@ -369,7 +369,7 @@ CuImage py_read_region(CuImage& cuimg,
     {
         indices = cucim::DimIndices{};
     }
-    cucim::CuImage region = cuimg.read_region(location, size, level, indices, device, nullptr, "");
+    cucim::CuImage region = cuimg.read_region(std::move(location), std::move(size), level, indices, device, nullptr, "");
     return region;
 }
 
