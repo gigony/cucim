@@ -21,7 +21,7 @@
 
 #include <cucim/filesystem/cufile_driver.h>
 
-#include "../memory/init.h"
+#include "../memory/memory_py.h"
 
 namespace py = pybind11;
 

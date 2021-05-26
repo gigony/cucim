@@ -25,9 +25,9 @@
 
 #include <cucim/cuimage.h>
 
-#include "cache/init.h"
-#include "filesystem/init.h"
-#include "io/init.h"
+#include "cache/cache_py.h"
+#include "filesystem/filesystem_py.h"
+#include "io/io_py.h"
 
 using namespace pybind11::literals;
 namespace py = pybind11;

@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include "memory_py.h"
 #include "memory_pydoc.h"
-#include "init.h"
 
 #include <pybind11/pybind11.h>
+
 #include <cucim/memory/memory_manager.h>
 
 namespace py = pybind11;
