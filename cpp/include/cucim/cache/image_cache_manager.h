@@ -24,6 +24,14 @@
 namespace cucim::cache
 {
 
+constexpr uint32_t kDefaultTileSize = 256;
+constexpr uint32_t kDefaultPatchSize = 256;
+
+uint32_t EXPORT_VISIBLE preferred_memory_capacity(const std::vector<uint32_t>& image_size,
+                                                  const std::vector<uint32_t>& tile_size,
+                                                  const std::vector<uint32_t>& patch_size,
+                                                  uint32_t bytes_per_pixel = 3);
+
 class EXPORT_VISIBLE ImageCacheManager
 {
 public:
