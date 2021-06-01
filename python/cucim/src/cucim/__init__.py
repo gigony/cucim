@@ -31,4 +31,14 @@ skimage
 
 """
 
-from .clara import CuImage, __version__, cli
+try:
+    from .clara import __version__
+except ImportError:
+    from ._version import get_versions
+    __version__ = get_versions()['version']
+    del get_versions
+
+try:
+    from .clara import CuImage, cli
+except ImportError:
+    pass
