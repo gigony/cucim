@@ -411,8 +411,6 @@ void _set_array_interface(const py::object& cuimg_obj)
     switch (tensor->ctx.device_type)
     {
     case kDLCPU: {
-
-
         py::gil_scoped_acquire scope_guard;
         // Reference: https://numpy.org/doc/stable/reference/arrays.interface.html
         cuimg_obj.attr("__array_interface__") =
@@ -432,32 +430,5 @@ void _set_array_interface(const py::object& cuimg_obj)
         break;
     }
 }
-// py::dict get_array_interface(const CuImage& cuimg)
-// {
-//     // TODO: using __array_struct__, access to array interface could be faster
-//     //       (https://numpy.org/doc/stable/reference/arrays.interface.html#c-struct-access)
-//     // TODO: check the performance difference between python int vs python long later.
-//     const DLTensor* tensor = static_cast<DLTensor*>(cuimg.container());
-//     if (!tensor)
-//     {
-//         return pybind11::dict();
-//     }
-//     const char* type_str = cuimg.container().numpy_dtype();
-
-//     py::list descr;
-//     descr.append(py::make_tuple(""_s, py::str(type_str)));
-
-//     py::tuple shape = vector2pytuple<pybind11::int_>(cuimg.shape());
-
-//     // Reference: https://numpy.org/doc/stable/reference/arrays.interface.html
-//     return py::dict{ "data"_a =
-//                          pybind11::make_tuple(py::int_(reinterpret_cast<uint64_t>(tensor->data)), py::bool_(false)),
-//                      "strides"_a = py::none(),
-//                      "descr"_a = descr,
-//                      "typestr"_a = py::str(type_str),
-//                      "shape"_a = shape,
-//                      "version"_a = py::int_(3) };
-// }
-
 
 } // namespace cucim
