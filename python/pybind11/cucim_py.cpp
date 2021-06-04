@@ -374,8 +374,8 @@ py::object py_read_region(const CuImage& cuimg,
     {
         indices = cucim::DimIndices{};
     }
-    cucim::CuImage* region_ptr =
-        new cucim::CuImage(cuimg.read_region(std::move(location), std::move(size), level, indices, device, nullptr, ""));
+    auto region_ptr = std::make_shared<cucim::CuImage>(
+        cuimg.read_region(std::move(location), std::move(size), level, indices, device, nullptr, ""));
     py::object region = py::cast(region_ptr);
 
     // Add `__array_interace__` or `__cuda_array_interface__` in runtime.
