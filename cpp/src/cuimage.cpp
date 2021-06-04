@@ -335,11 +335,18 @@ bool CuImage::is_loaded() const
 }
 io::Device CuImage::device() const
 {
-    DLContext& ctx = image_data_->container.ctx;
-    auto device_type = static_cast<io::DeviceType>(ctx.device_type);
-    auto device_id = static_cast<io::DeviceIndex>(ctx.device_id);
-    std::string shm_name = image_data_->shm_name == nullptr ? "" : image_data_->shm_name;
-    return io::Device(device_type, device_id, shm_name);
+    if (image_data_)
+    {
+        DLContext& ctx = image_data_->container.ctx;
+        auto device_type = static_cast<io::DeviceType>(ctx.device_type);
+        auto device_id = static_cast<io::DeviceIndex>(ctx.device_id);
+        std::string shm_name = image_data_->shm_name == nullptr ? "" : image_data_->shm_name;
+        return io::Device(device_type, device_id, shm_name);
+    }
+    else
+    {
+        return io::Device("cpu");
+    }
 }
 Metadata CuImage::raw_metadata() const
 {
