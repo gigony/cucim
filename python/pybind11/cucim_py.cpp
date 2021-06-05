@@ -430,10 +430,10 @@ void _set_array_interface(const py::object& cuimg_obj)
     }
     break;
     case kDLGPU: {
-        // Reference: http://numba.pydata.org/numba-doc/latest/cuda/cuda_array_interface.html
+        // Reference: https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html
         cuimg_obj.attr("__cuda_array_interface__") =
-            py::dict{ "data"_a = data,       "strides"_a = py::none(), "descr"_a = descr,
-                      "typestr"_a = typestr, "shape"_a = shape,        "version"_a = py::int_(2) };
+            py::dict{ "data"_a = data,   "strides"_a = py::none(),  "descr"_a = descr,     "typestr"_a = typestr,
+                      "shape"_a = shape, "version"_a = py::int_(3), "mask"_a = py::none(), "stream"_a = 1 };
     }
     break;
     default:
