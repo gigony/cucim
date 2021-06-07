@@ -60,14 +60,14 @@ std::shared_ptr<cucim::cache::ImageCache> py_cache(const py::object& ctype, cons
 
 json py_metadata(const CuImage& cuimg);
 py::dict py_resolutions(const CuImage& cuimg);
-py::object py_read_region(const CuImage& cuimg,
-                          std::vector<int64_t>&& location,
-                          std::vector<int64_t>&& size,
-                          int16_t level,
-                          const io::Device& device,
-                          const py::object& buf,
-                          const std::string& shm_name,
-                          const py::kwargs& kwargs);
+CuImage py_read_region(const CuImage& cuimg,
+                       std::vector<int64_t>&& location,
+                       std::vector<int64_t>&& size,
+                       int16_t level,
+                       const io::Device& device,
+                       const py::object& buf,
+                       const std::string& shm_name,
+                       const py::kwargs& kwargs);
 void _set_array_interface(const py::object& cuimg_obj);
 } // namespace cucim
 

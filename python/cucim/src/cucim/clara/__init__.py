@@ -17,7 +17,7 @@ import os
 
 from . import cli, converter
 # import hidden methods
-from ._cucim import CuImage, __version__, filesystem, io, cache
+from ._cucim import __version__, filesystem, io, cache
 
 __all__ = ['cli', 'CuImage', 'filesystem', 'io', 'cache', 'converter', '__version__']
 
@@ -26,3 +26,31 @@ from ._cucim import _get_plugin_root  # isort:skip
 from ._cucim import _set_plugin_root  # isort:skip
 # Set plugin root path
 _set_plugin_root(os.path.dirname(os.path.realpath(__file__)))
+
+
+# update
+class CuImage:
+    def __init__(self, *args, **kwargs):
+        self._C = _cucim.CuImage(*args, **kwargs)
+
+    def __getattr__(self, attr):
+        return getattr(self._C, attr)
+
+    def __setattr__(self, attr, val):
+        if attr == '_C':
+            object.__setattr__(self, attr, val)
+        else:
+            setattr(self._C, attr, val)
+
+    def read_region(self, *args, **kwargs):
+        region = self._C.read_region(*args, **kwargs)
+        _cucim.CuImage._set_array_interface(region)
+        return region
+
+# inherit
+
+# class CuImage(_cucim.CuImage):
+#     def read_region(self, *args, **kwargs):
+#         region = super().read_region(*args, **kwargs)
+#         super()._set_array_interface(region)
+#         return region

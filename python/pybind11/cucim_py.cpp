@@ -332,14 +332,14 @@ py::dict py_resolutions(const CuImage& cuimg)
 }
 
 
-py::object py_read_region(const CuImage& cuimg,
-                          std::vector<int64_t>&& location,
-                          std::vector<int64_t>&& size,
-                          int16_t level,
-                          const io::Device& device,
-                          const py::object& buf,
-                          const std::string& shm_name,
-                          const py::kwargs& kwargs)
+CuImage py_read_region(const CuImage& cuimg,
+                       std::vector<int64_t>&& location,
+                       std::vector<int64_t>&& size,
+                       int16_t level,
+                       const io::Device& device,
+                       const py::object& buf,
+                       const std::string& shm_name,
+                       const py::kwargs& kwargs)
 {
     cucim::DimIndices indices;
 
@@ -380,19 +380,8 @@ py::object py_read_region(const CuImage& cuimg,
         indices = cucim::DimIndices{};
     }
 
-    auto region_ptr = std::make_shared<cucim::CuImage>(
-        cuimg.read_region(std::move(location), std::move(size), level, indices, device, nullptr, ""));
-
-    {
-        py::gil_scoped_acquire scope_guard;
-
-        py::object region = py::cast(region_ptr);
-
-        // Add `__array_interace__` or `__cuda_array_interface__` in runtime.
-        _set_array_interface(region);
-
-        return region;
-    }
+    cucim::CuImage region = cuimg.read_region(std::move(location), std::move(size), level, indices, device, nullptr, "");
+    return region;
 }
 
 void _set_array_interface(const py::object& cuimg_obj)
