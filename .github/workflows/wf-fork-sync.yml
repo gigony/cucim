@@ -1,0 +1,27 @@
+on:
+  schedule:
+    - cron:  '00 11 * * *'
+    # scheduled at 04:00 PST
+  workflow_dispatch:
+
+jobs:
+  sync_with_upstream:
+    runs-on: ubuntu-latest
+    name: Sync master with upstream latest
+
+    steps:
+    - name: Checkout branch-21.08
+      uses: actions/checkout@v2
+      with:
+        ref: branch-21.08
+
+    - name: Pull upstream changes
+      id: sync
+      uses: aormsby/Fork-Sync-With-Upstream-action@v2.2
+      with:
+        upstream_repository: rapidsai/cucim
+        upstream_branch: branch-21.08
+        target_branch: branch-21.08
+
+    - name: Timestamp
+      run: date
