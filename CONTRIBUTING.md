@@ -187,7 +187,66 @@ However, if a build option or dependent packages are updated, the build can be f
 ./run build_local clean
 ```
 
-## Building a Package (for distribution. Including a wheel package for pip)
+## Building a Conda package
+
+**Setup**
+
+You can build a conda package on top of `cucim` Conda environment created by instructions above:
+
+```bash
+conda activate cucim
+```
+
+First, please make sure that you have `conda-build` installed:
+
+```bash
+# Install conda-build if `conda build` command is not available.
+! conda build --help > /dev/null && conda install -c conda-forge conda-build
+```
+
+Export necessary environment variables:
+
+```bash
+export CUDA="$(conda list | grep cudatoolkit-dev | egrep -o "[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+")"
+export PYTHON_VER="$(python -c "import sys; print('.'.join(map(str, sys.version_info[:2])))")"
+echo "CUDA       : ${CUDA}"
+echo "PYTHON_VER : ${PYTHON_VER}"
+```
+
+Then, create `conda-bld` folder:
+
+```bash
+CONDA_BLD_DIR=$(pwd)/conda-bld
+mkdir -p $CONDA_BLD_DIR
+```
+
+**Build**
+
+```bash
+conda build -c conda-forge \
+    --dirty \
+    --no-remove-work-dir \
+    --no-build-id \
+    --croot ${CONDA_BLD_DIR} \
+    --use-local \
+    conda/recipes/libcucim \
+    conda/recipes/cucim
+
+# Conda Package files would be available at `conda-bld/linux-64`
+ls conda-bld/linux-64/*cucim*
+```
+
+**Install**
+
+```bash
+conda install -y -c ${CONDA_BLD_DIR} -c conda-forge \
+    libcucim \
+    cucim
+```
+
+## Building a package (for distribution. Including a wheel package for pip)
+
+**Build**
 
 You can execute the following command to build a wheel file for pip.
 
@@ -200,6 +259,12 @@ The command would use `./temp` folder as a local build folder and build a distri
 `./run build_package` will reuse local `./temp` folder to reduce the build time.
 
 If C++ code or dependent packages are updated so the build is failing somehow, please retry it after deleting the `temp` folder under the repository root.
+
+**Install**
+
+```bash
+python -m pip install dist/cucim*.whl
+```
 
 ## Running Tests
 
