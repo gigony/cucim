@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2021, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +57,12 @@ static void unload_all_plugins()
     g_framework->unload_all_plugins();
 }
 
+static void load_plugin(const char* library_path)
+{
+    CUCIM_ASSERT(g_framework);
+    g_framework->load_plugin(library_path);
+}
+
 static const char* get_plugin_root()
 {
     CUCIM_ASSERT(g_framework);
@@ -77,6 +83,7 @@ static Framework get_framework_impl()
         register_plugin,
         acquire_interface_from_library_with_client,
         unload_all_plugins,
+        load_plugin,
         get_plugin_root,
         set_plugin_root,
     };
