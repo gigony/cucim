@@ -135,6 +135,7 @@ superbuild_depend(cli11)
 superbuild_depend(pugixml)
 superbuild_depend(json)
 superbuild_depend(libdeflate)
+superbuild_depend(nvjpeg)
 
 ################################################################################
 # Find cucim package
@@ -214,6 +215,7 @@ target_link_libraries(${CUCIM_PLUGIN_NAME}
             deps::pugixml
             deps::json
             deps::libdeflate
+            deps::nvjpeg_static
         )
 
 target_include_directories(${CUCIM_PLUGIN_NAME}

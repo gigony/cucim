@@ -25,7 +25,7 @@ struct AppConfig
     std::string test_folder;
     std::string test_file;
     std::string temp_folder = "/tmp";
-    std::string get_input_path(const char* default_value = "generated/tiff_stripe_4096x4096_256.tif") const
+    std::string get_input_path(const char* default_value = "private/philips_tiff_000.tif") const
     {
         // If `test_file` is absolute path
         if (!test_folder.empty() && test_file.substr(0, 1) == "/")

@@ -25,8 +25,11 @@ add_executable(cuslide_tests
         test_read_region.cpp
         test_read_rawtiff.cpp
         test_philips_tiff.cpp
+        test_read_tiff_nvjpeg.cpp
         )
-set_source_files_properties(test_read_rawtiff.cpp PROPERTIES LANGUAGE CUDA) # failed with CLI11 library
+set_source_files_properties(test_read_rawtiff.cpp
+                            test_read_tiff_nvjpeg.cpp
+                            PROPERTIES LANGUAGE CUDA) # failed with CLI11 library
 
 set_target_properties(cuslide_tests
     PROPERTIES
