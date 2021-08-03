@@ -87,7 +87,7 @@ TEST_CASE("Test reading TIFF with nvjpeg", "[test_read_tiff_nvjpeg.cpp]")
     nvjpegHandle_t m_handle = nullptr;
     nvjpegOutputFormat_t m_output_format = NVJPEG_OUTPUT_RGBI;
     nvjpegJpegState_t m_state;
-    nvjpegBackend_t m_impl = NVJPEG_BACKEND_GPU_HYBRID;
+    nvjpegBackend_t m_impl = NVJPEG_BACKEND_GPU_HYBRID_DEVICE;
 
     std::srand(std::time(nullptr));
 
@@ -216,7 +216,7 @@ TEST_CASE("Test reading TIFF with nvjpeg", "[test_read_tiff_nvjpeg.cpp]")
     // Initialize batch data with the first data
     for (int i = 0; i < m_batch_size; i++)
     {
-        uint8_t* mem_offset = aligned_host + image_piece_offsets_[0] - file_start_offset;
+        uint8_t* mem_offset = aligned_device + image_piece_offsets_[0] - file_start_offset;
         raw_inputs.push_back((const unsigned char*)mem_offset);
         img_len.push_back(image_piece_bytecounts_[0]);
         CUDA_ERROR(cudaMallocPitch(&raw_outputs[i].channel[0], &raw_outputs[i].pitch[0], tile_width_bytes, tile_height));
@@ -293,6 +293,8 @@ TEST_CASE("Test reading TIFF with nvjpeg", "[test_read_tiff_nvjpeg.cpp]")
                 cucim::logger::Timer timer("- preload : {:.7f}\n", true, false);
 
                 ssize_t read_cnt = fd->pread(aligned_host, large_block_size, file_start_offset);
+                // Simulate GDS (by copying file content from CPU memory to GPU memory)
+                cudaMemcpy(aligned_device, aligned_host, read_cnt, ::cudaMemcpyHostToDevice);
 
                 double elapsed_time = timer.stop();
                 if (iter >= skip_count)
@@ -317,7 +319,7 @@ TEST_CASE("Test reading TIFF with nvjpeg", "[test_read_tiff_nvjpeg.cpp]")
                 {
                     for (int i = 0; i < m_batch_size && image_idx < image_piece_count_; ++i, ++image_idx)
                     {
-                        uint8_t* mem_offset = aligned_host + image_piece_offsets_[image_idx] - file_start_offset;
+                        uint8_t* mem_offset = aligned_device + image_piece_offsets_[image_idx] - file_start_offset;
                         raw_inputs[i] = mem_offset;
                         img_len[i] = image_piece_bytecounts_[image_idx];
                     }
