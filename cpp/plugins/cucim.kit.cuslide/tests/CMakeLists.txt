@@ -60,12 +60,14 @@ target_link_libraries(cuslide_tests
             cucim::cucim
             ${CUCIM_PLUGIN_NAME}
             deps::catch2
-            deps::openslide
             deps::cli11
             deps::fmt
             deps::nvjpeg_static
             CUDA::culibos
             pthread
+            # openslide should be placed after nvjpeg_static to make local "nvjpeg.h" higher priorith than conda's system include
+            deps::openslide
+            rt  # need for conda build
             ${CMAKE_DL_LIBS}
         )
 
