@@ -22,12 +22,12 @@
 namespace cuslide::raw
 {
 
-bool decode_raw(int fd,
-                unsigned char* raw_buf,
-                uint64_t offset,
-                uint64_t size,
-                uint8_t** dest,
-                uint64_t dest_nbytes,
-                const cucim::io::Device& out_device);
+EXPORT_VISIBLE bool decode_raw(int fd,
+                               unsigned char* raw_buf,
+                               uint64_t offset,
+                               uint64_t size,
+                               uint8_t** dest,
+                               uint64_t dest_nbytes,
+                               const cucim::io::Device& out_device);
 }
 #endif // CUSLIDE_RAW_H

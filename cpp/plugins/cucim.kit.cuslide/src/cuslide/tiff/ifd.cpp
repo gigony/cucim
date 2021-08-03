@@ -583,7 +583,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
     // Need to free the manually. Usually it is set to nullptr and memory is created by decode_libjpeg() by using
     // tjAlloc() (Also need to free with tjFree() after use. See the documentation of tjAlloc() for the detail.)
     const int pixel_format = TJPF_RGB; // TODO: support other pixel format
-    const int pixel_size_nbytes = tjPixelSize[pixel_format];
+const int pixel_size_nbytes = tjPixelSize[pixel_format];
     auto dest_start_ptr = static_cast<uint8_t*>(raster);
 
     bool is_out_of_image = (ex < 0 || width <= sx || ey < 0 || height <= sy);

@@ -89,6 +89,11 @@ public:
     // Hidden methods for benchmarking
     void write_offsets_(const char* file_path);
 
+    std::vector<uint8_t>& get_jpegtable_()
+    {
+        return jpegtable_;
+    }
+
     // Make TIFF available to access private members of IFD
     friend class TIFF;
 

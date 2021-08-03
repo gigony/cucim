@@ -22,14 +22,14 @@
 namespace cuslide::jpeg
 {
 
-bool decode_libjpeg(int fd,
-                    unsigned char* jpeg_buf,
-                    uint64_t offset,
-                    uint64_t size,
-                    const void* jpegtable_data,
-                    uint32_t jpegtable_count,
-                    uint8_t** dest,
-                    const cucim::io::Device& out_device);
+EXPORT_VISIBLE bool decode_libjpeg(int fd,
+                                   unsigned char* jpeg_buf,
+                                   uint64_t offset,
+                                   uint64_t size,
+                                   const void* jpegtable_data,
+                                   uint32_t jpegtable_count,
+                                   uint8_t** dest,
+                                   const cucim::io::Device& out_device);
 
 /**
  * Reads jpeg header tables.

@@ -30,7 +30,7 @@
 				"env": {
 					"CUCIM_TESTDATA_FOLDER": "${workspaceDirectory}/test_data",
 					// Add cuslide plugin's library path to LD_LIBRARY_PATH
-					"LD_LIBRARY_PATH": "${workspaceDirectory}/build-debug/lib:${workspaceDirectory}/cpp/plugins/cucim.kit.cuslide/build-debug/lib:${workspaceDirectory}/temp/cuda/lib64:${os_env:LD_LIBRARY_PATH}",
+					"LD_LIBRARY_PATH": "${workspaceDirectory}/build-debug/lib:${workspaceDirectory}/cpp/plugins/cucim.kit.cuslide/build-debug/lib:${workspaceDirectory}/cpp/plugins/cucim.kit.cumed/build-debug/lib:${workspaceDirectory}/temp/cuda/lib64:${os_env:LD_LIBRARY_PATH}",
 					"CUCIM_TEST_PLUGIN_PATH": "cucim.kit.cuslide@21.10.00.so"
 				},
 				"cwd": "${workspaceDirectory}",
@@ -141,7 +141,8 @@
 			"__node_handle": "cpp",
 			"__memory": "cpp",
 			"*.def": "cpp",
-			"__mutex_base": "cpp"
+			"__mutex_base": "cpp",
+			"span": "cpp"
 		},
 		// https://vector-of-bool.github.io/docs/vscode-cmake-tools/settings.html
 		"cmake.buildTask": true,
