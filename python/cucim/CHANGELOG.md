@@ -1,6 +1,11 @@
 
 # Changelog
 
+## [21.08.02](https://github.com/rapidsai/cucim/wiki/release_notes_v21.08.02)
+
+- [New] Add transforms for Digital Pathology ([#100](https://github.com/rapidsai/cucim/pull/100))
+  - Implement transforms for color jitter, image scale intensity, image flip and rotate for batched RGB images.
+
 ## [21.08.01](https://github.com/rapidsai/cucim/wiki/release_notes_v21.08.01)
 
 - [New] Add skimage.morphology.thin ([#27](https://github.com/rapidsai/cucim/pull/27))
@@ -11,7 +16,7 @@
 
 ## [21.06.00](https://github.com/rapidsai/cucim/wiki/release_notes_v21.06.00)
 
-- Implement cache mechanism
+- Implement cache mechanism.
 - Add `__cuda_array_interface`.
 - Fix a memory leak in Deflate decoder.
 
