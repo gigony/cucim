@@ -59,8 +59,7 @@ int main(int argc, char* argv[])
     fmt::print("channel_names: ({})\n", fmt::join(associated_image.channel_names(), ", "));
     fmt::print("\n");
 
-    cucim::CuImage region =
-        image.read_region({ 10000, 10000 }, { 1024, 1024 }, 0, cucim::DimIndices{}, "cpu", nullptr, "");
+    cucim::CuImage region = image.read_region({ 10000, 10000 }, { 1024, 1024 }, 0);
 
     fmt::print("is_loaded: {}\n", region.is_loaded());
     fmt::print("device: {}\n", std::string(region.device()));
@@ -83,8 +82,7 @@ int main(int argc, char* argv[])
 
     region.save(fmt::format("{}/output.ppm", output_folder_path));
 
-    cucim::CuImage region2 =
-        image.read_region({ 5000, 5000 }, { 1024, 1024 }, 1, cucim::DimIndices{}, "cpu", nullptr, "");
+    cucim::CuImage region2 = image.read_region({ 5000, 5000 }, { 1024, 1024 }, 1);
     region2.save(fmt::format("{}/output2.ppm", output_folder_path));
 
     return 0;

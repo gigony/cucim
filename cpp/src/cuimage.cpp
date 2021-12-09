@@ -591,6 +591,10 @@ memory::DLTContainer CuImage::container() const
 CuImage CuImage::read_region(std::vector<int64_t>&& location,
                              std::vector<int64_t>&& size,
                              uint16_t level,
+                             uint32_t num_workers,
+                             uint32_t batch_size,
+                             bool drop_last,
+                             int32_t prefetch_factor,
                              const DimIndices& region_dim_indices,
                              const io::Device& device,
                              DLTensor* buf,
@@ -598,7 +602,6 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
 {
     PROF_SCOPED_RANGE(PROF_EVENT(cuimage_read_region));
     (void)region_dim_indices;
-    (void)device;
     (void)buf;
     (void)shm_name;
 
@@ -621,13 +624,26 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
         size.insert(size.end(), level_dimension.begin(), level_dimension.end());
     }
 
+    // The number of locations should be the multiplication of the number of dimensions in the size.
+    if (location.size() % size.size() != 0)
+    {
+        throw std::runtime_error(
+            "[Error] The number of locations should be the multiplication of the number of dimensions in the size!");
+    }
+
+    uint32_t size_ndim = size.size();
+    uint32_t location_len = location.size() / size_ndim;
     std::string device_name = std::string(device);
     cucim::io::format::ImageReaderRegionRequestDesc request{};
-    int64_t request_location[2] = { location[0], location[1] };
-    request.location = request_location;
+    request.location = location.data();
+    request.size = size.data();
+    request.location_len = location_len;
+    request.size_ndim = size_ndim;
     request.level = level;
-    int64_t request_size[2] = { size[0], size[1] };
-    request.size = request_size;
+    request.num_workers = num_workers;
+    request.batch_size = batch_size;
+    request.drop_last = drop_last;
+    request.prefetch_factor = prefetch_factor;
     request.device = device_name.data();
 
     //    cucim::io::format::ImageDataDesc image_data{};
@@ -676,6 +692,10 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     auto& resource = out_metadata.get_resource();
 
     std::string_view dims{ "YXC" };
+    if (batch_size > 1)
+    {
+        dims = { "NYXC" };
+    }
 
     // Information from image_data
     std::pmr::vector<int64_t> shape(&resource);
@@ -712,9 +732,17 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
 
     std::pmr::vector<std::string_view> spacing_units(&resource);
     spacing_units.reserve(ndim);
-    for (int i = 0; i < ndim; i++)
+
+    int index = 0;
+    if (ndim == 4)
     {
-        int64_t dim_char = dim_indices_.index(dims[i]);
+        index = 1;
+        // The first dimension is for 'batch' ('N')
+        spacing_units.emplace_back(std::string_view{ "batch" });
+    }
+    for (; index < ndim; ++index)
+    {
+        int64_t dim_char = dim_indices_.index(dims[index]);
 
         const char* str_ptr = image_metadata_->spacing_units[dim_char];
         size_t str_len = strlen(image_metadata_->spacing_units[dim_char]);
@@ -947,8 +975,7 @@ bool CuImage::crop_image(const io::format::ImageReaderRegionRequestDesc& request
                          io::format::ImageDataDesc& out_image_data) const
 {
     PROF_SCOPED_RANGE(PROF_EVENT(cuimage_crop_image));
-    // TODO: assume length of location/size to 2.
-    constexpr int32_t ndims = 2;
+    const int32_t ndim = request.size_ndim;
 
     if (request.level >= image_metadata_->resolution_info.level_count)
     {
@@ -964,7 +991,7 @@ bool CuImage::crop_image(const io::format::ImageReaderRegionRequestDesc& request
     //       (we cannot use `ifd->samples_per_pixel()` here)
     uint32_t samples_per_pixel = static_cast<uint32_t>(image_metadata_->shape[dim_indices_.index('C')]);
 
-    for (int32_t i = 0; i < ndims; ++i)
+    for (int32_t i = 0; i < ndim; ++i)
     {
         if (request.location[i] < 0)
         {

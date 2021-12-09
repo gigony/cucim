@@ -44,6 +44,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/codec/base64.h
         include/cucim/codec/hash_function.h
         include/cucim/codec/methods.h
+        include/cucim/concurrent/threadpool.h
         include/cucim/config/config.h
         include/cucim/core/framework.h
         include/cucim/core/plugin.h
@@ -85,6 +86,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/cache/image_cache_shared_memory.h
         src/cache/image_cache_shared_memory.cpp
         src/codec/base64.cpp
+        src/concurrent/threadpool.cpp
         src/config/config.cpp
         src/core/cucim_framework.h
         src/core/cucim_framework.cpp
@@ -144,6 +146,7 @@ target_compile_definitions(${CUCIM_PACKAGE_NAME}
 target_link_libraries(${CUCIM_PACKAGE_NAME}
         PUBLIC
             ${CMAKE_DL_LIBS}
+            Threads::Threads # -lpthread
             $<BUILD_INTERFACE:deps::fmt>
             $<INSTALL_INTERFACE:cucim::fmt-header-only>
         PRIVATE
@@ -154,6 +157,7 @@ target_link_libraries(${CUCIM_PACKAGE_NAME}
             deps::boost-header-only
             deps::json
             deps::nvtx3
+            deps::concurrentqueue
         )
 
 if (CUCIM_STATIC_GDS)

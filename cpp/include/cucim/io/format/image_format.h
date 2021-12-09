@@ -203,14 +203,20 @@ struct ImageParserDesc
 
 struct ImageReaderRegionRequestDesc
 {
-    int64_t* location;
-    int64_t* size;
-    uint16_t level;
-    DimIndicesDesc region_dim_indices;
-    char* associated_image_name;
-    char* device;
-    DLTensor* buf;
-    char* shm_name;
+    int64_t* location = nullptr;
+    int64_t* size = nullptr;
+    uint32_t location_len = 1;
+    int32_t size_ndim = 2;
+    uint16_t level = 0;
+    uint32_t num_workers = 0;
+    uint32_t batch_size = 1;
+    bool drop_last = false;
+    int32_t prefetch_factor = 2;
+    DimIndicesDesc region_dim_indices{};
+    char* associated_image_name = nullptr;
+    char* device = nullptr;
+    DLTensor* buf = nullptr;
+    char* shm_name = nullptr;
 };
 
 struct ImageReaderDesc

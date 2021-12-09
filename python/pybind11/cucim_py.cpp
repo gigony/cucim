@@ -148,9 +148,13 @@ PYBIND11_MODULE(_cucim, m)
         .def_property("resolutions", &py_resolutions, nullptr, doc::CuImage::doc_resolutions,
                       py::call_guard<py::gil_scoped_release>()) //
         .def("read_region", &py_read_region, doc::CuImage::doc_read_region, py::call_guard<py::gil_scoped_release>(), //
-             py::arg("location") = py::list{}, //
-             py::arg("size") = py::list{}, //
+             py::arg("location") = py::tuple{}, //
+             py::arg("size") = py::tuple{}, //
              py::arg("level") = 0, //
+             py::arg("num_workers") = 0, //
+             py::arg("batch_size") = 1, //
+             py::arg("drop_last") = py::bool_(false), //
+             py::arg("prefetch_factor") = 2, //
              py::arg("device") = io::Device(), //
              py::arg("buf") = py::none(), //
              py::arg("shm_name") = "") //
@@ -379,15 +383,58 @@ py::dict py_resolutions(const CuImage& cuimg)
 
 
 py::object py_read_region(const CuImage& cuimg,
-                          std::vector<int64_t>&& location,
+                          const py::iterable& location,
                           std::vector<int64_t>&& size,
                           int16_t level,
+                          uint32_t num_workers,
+                          uint32_t batch_size,
+                          bool drop_last,
+                          int32_t prefetch_factor,
                           const io::Device& device,
                           const py::object& buf,
                           const std::string& shm_name,
                           const py::kwargs& kwargs)
 {
+    (void)num_workers;
+    (void)batch_size;
+    (void)drop_last;
+    (void)prefetch_factor;
     cucim::DimIndices indices;
+    std::vector<int64_t> locations;
+    {
+        py::gil_scoped_acquire scope_guard;
+
+        auto arr = pybind11::array_t<int64_t, py::array::c_style | py::array::forcecast>::ensure(location);
+        if (arr) // fast copy
+        {
+            py::buffer_info buf = arr.request();
+            int64_t* data_array = static_cast<int64_t*>(buf.ptr);
+            ssize_t data_size = buf.size;
+            locations.reserve(data_size);
+            locations.insert(locations.end(), &data_array[0], &data_array[data_size]);
+        }
+        else
+        {
+            auto iter = py::iter(location);
+            while (iter != py::iterator::sentinel())
+            {
+                if (py::isinstance<py::iterable>(*iter))
+                {
+                    auto iter2 = py::iter(*iter);
+                    while (iter2 != py::iterator::sentinel())
+                    {
+                        locations.emplace_back(py::cast<int64_t>(*iter2));
+                        ++iter2;
+                    }
+                }
+                else
+                {
+                    locations.emplace_back(py::cast<int64_t>(*iter));
+                }
+                ++iter;
+            }
+        }
+    }
 
     if (kwargs)
     {
@@ -426,8 +473,9 @@ py::object py_read_region(const CuImage& cuimg,
         indices = cucim::DimIndices{};
     }
 
-    auto region_ptr = std::make_shared<cucim::CuImage>(
-        cuimg.read_region(std::move(location), std::move(size), level, indices, device, nullptr, ""));
+    auto region_ptr = std::make_shared<cucim::CuImage>(cuimg.read_region(std::move(locations), std::move(size), level,
+                                                                         num_workers, batch_size, drop_last,
+                                                                         prefetch_factor, indices, device, nullptr, ""));
 
     {
         py::gil_scoped_acquire scope_guard;

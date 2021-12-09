@@ -67,9 +67,13 @@ bool py_is_trace_enabled(py::object /* self */);
 json py_metadata(const CuImage& cuimg);
 py::dict py_resolutions(const CuImage& cuimg);
 py::object py_read_region(const CuImage& cuimg,
-                          std::vector<int64_t>&& location,
+                          const py::iterable& location,
                           std::vector<int64_t>&& size,
                           int16_t level,
+                          uint32_t num_workers,
+                          uint32_t batch_size,
+                          bool drop_last,
+                          int32_t prefetch_factor,
                           const io::Device& device,
                           const py::object& buf,
                           const std::string& shm_name,

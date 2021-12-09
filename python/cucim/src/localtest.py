@@ -13,6 +13,28 @@
 # limitations under the License.
 #
 
+import sys
+import numpy as np
+from cucim import CuImage
+
+cache = CuImage.cache("per_process", memory_capacity=1024)
+
+img = CuImage("notebooks/input/image.tif")
+
+locations = [[0, 0], [100, 0], [200, 0], [300, 0],
+             [0, 200], [100, 200], [200, 200], [300, 200]]
+locations = np.array(locations)
+
+region = img.read_region(locations, (224, 224), batch_size=4, num_workers=8)
+print(region.shape)
+# from cucim import CuImage
+
+# img = CuImage("notebooks/input/image.tif")
+# print(img.read_region((0, 0, 200, 200), (200, 200), num_workers=2).shape)
+
+sys.exit(0)
+
+
 import concurrent.futures
 import json
 import os

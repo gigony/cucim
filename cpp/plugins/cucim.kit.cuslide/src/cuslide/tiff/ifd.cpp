@@ -164,9 +164,11 @@ bool IFD::read(const TIFF* tiff,
 
     int64_t sx = request->location[0];
     int64_t sy = request->location[1];
+    uint32_t batch_size = request->batch_size;
     int64_t w = request->size[0];
     int64_t h = request->size[1];
     int32_t n_ch = samples_per_pixel_; // number of channels
+    int ndim = 3;
 
     size_t raster_size = w * h * samples_per_pixel_;
     void* raster = nullptr;
@@ -181,16 +183,30 @@ bool IFD::read(const TIFF* tiff,
 
     if (is_read_optimizable())
     {
+        if (batch_size > 1)
+        {
+            ndim = 4;
+        }
+
+        size_t one_raster_size = raster_size;
+        raster_size *= batch_size;
+
         if (!raster)
         {
             raster = cucim_malloc(raster_size); // RGB image
             memset(raster, 0, raster_size);
         }
 
+        int64_t* location = request->location;
+        uint8_t* raster_ptr = static_cast<uint8_t*>(raster);
 
-        if (!read_region_tiles(tiff, this, sx, sy, w, h, raster, out_device))
+        for (uint32_t i = 0; i < batch_size; ++i)
         {
-            fmt::print(stderr, "[Error] Failed to read region with libjpeg!\n");
+            if (!read_region_tiles(tiff, this, location[i * 2], location[i * 2 + 1], w, h, raster_ptr, out_device))
+            {
+                fmt::print(stderr, "[Error] Failed to read region with libjpeg!\n");
+            }
+            raster_ptr += one_raster_size;
         }
     }
     else
@@ -260,11 +276,21 @@ bool IFD::read(const TIFF* tiff,
         }
     }
 
-    int ndim = 3;
+
     int64_t* shape = static_cast<int64_t*>(cucim_malloc(sizeof(int64_t) * ndim));
-    shape[0] = h;
-    shape[1] = w;
-    shape[2] = n_ch;
+    if (ndim == 3)
+    {
+        shape[0] = h;
+        shape[1] = w;
+        shape[2] = n_ch;
+    }
+    else // ndim == 4
+    {
+        shape[0] = batch_size;
+        shape[1] = h;
+        shape[2] = w;
+        shape[3] = n_ch;
+    }
 
     // Copy the raster memory and free it if needed.
     if (!is_buf_available)
@@ -518,12 +544,10 @@ bool IFD::read_region_tiles(const TIFF* tiff,
             uint32_t nbytes_tile_pixel_size_x = (offset_x == offset_ex) ?
                                                     (pixel_offset_ex - tile_pixel_offset_x + 1) * samples_per_pixel :
                                                     (tw - tile_pixel_offset_x) * samples_per_pixel;
-
+            // auto func = [=, &image_cache]() {
             uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
             uint32_t dest_pixel_index = dest_pixel_index_x;
-
             uint8_t* tile_data = tile_raster;
-
             if (tiledata_size > 0)
             {
                 auto key = image_cache.create_key(ifd_hash_value, index);
@@ -607,6 +631,8 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                     memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
                 }
             }
+            // };
+            // func();
             dest_pixel_index_x += nbytes_tile_pixel_size_x;
         }
         dest_start_ptr += dest_pixel_step_y * dest_pixel_offset_len_y;
@@ -775,8 +801,14 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                                                     (pixel_offset_ex - tile_pixel_offset_x + 1) * samples_per_pixel :
                                                     (tw - tile_pixel_offset_x) * samples_per_pixel;
 
-            uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
-            uint32_t dest_pixel_index = dest_pixel_index_x;
+            uint32_t nbytes_tile_index_orig = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
+            uint32_t dest_pixel_index_orig = dest_pixel_index_x;
+
+            // auto func =
+            //     [=, &image_cache]() {
+            uint32_t nbytes_tile_index = nbytes_tile_index_orig;
+            uint32_t dest_pixel_index = dest_pixel_index_orig;
+
             if (tiledata_size > 0)
             {
                 bool copy_partial = false;
@@ -927,6 +959,10 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
                 }
             }
+            //     };
+
+            // func();
+
             dest_pixel_index_x += nbytes_tile_pixel_size_x;
         }
         dest_start_ptr += dest_pixel_step_y * dest_pixel_offset_len_y;
