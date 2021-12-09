@@ -93,9 +93,21 @@ visualize(region)
 #Image.fromarray(np.asarray(region))
 ```
 
+Aperio SVS (.svs) image format is supported since cuCIM [v21.10.01](https://github.com/rapidsai/cucim/wiki/release_notes_v21.10.01#support-aperio-svs-svs).
+
+Please check [this notebook](https://nbviewer.org/github/rapidsai/cucim/blob/branch-21.12/notebooks/Supporting_Aperio_SVS_Format.ipynb) to see how to use the feature.
+
 ### Using Cache
 
 Please look at this [notebook](https://nbviewer.jupyter.org/github/rapidsai/cucim/blob/branch-21.12/notebooks/Using_Cache.ipynb).
+
+### Accessing File with GDS
+
+Please look at this [notebook](https://nbviewer.jupyter.org/github/rapidsai/cucim/blob/branch-21.12/notebooks/Accessing_File_with_GDS.ipynb).
+
+### NVTX Support for Performance Analysis
+
+Please look at [this release note](https://github.com/rapidsai/cucim/wiki/release_notes_v21.12.00#2-add-nvtx-support-for-performance-analysis).
 
 ### Using scikit-image API
 
