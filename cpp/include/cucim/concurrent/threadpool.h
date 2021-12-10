@@ -19,9 +19,8 @@
 
 #include "cucim/macros/api_header.h"
 
-#include <future>
-#include <thread>
-#include <vector>
+#include <functional>
+#include <memory>
 
 namespace cucim::concurrent
 {
@@ -31,52 +30,19 @@ class EXPORT_VISIBLE ThreadPool
 public:
     explicit ThreadPool(size_t num_workers);
     ThreadPool(const ThreadPool&) = delete;
+
     ThreadPool& operator=(const ThreadPool&) = delete;
 
     ~ThreadPool();
 
-    struct Task
-    {
-        explicit Task(bool stop = false);
-        Task(Task&& x) noexcept = default;
-        Task& operator=(const Task& x) = delete;
-        Task& operator=(Task&& x) noexcept = default;
-
-        std::function<void()> function;
-        // std::shared_ptr<std::packaged_task<void()>> function;
-        std::promise<void> promise;
-        bool stop;
-    };
-
-    bool enqueue(Task& task);
-
-    // template <typename Func, class... Args>
-    // auto run(Func&& func, const Args&... args)
-    template <typename Func>
-    auto run(const Func& func)
-    {
-        Task task;
-        std::future<void> future = task.promise.get_future();
-
-        // task.function =
-        //     std::make_shared<std::packaged_task<void()>>([func, args...] { func(std::forward<const Args>(args)...);
-        //     });
-
-        task.function = [func] { func(); };
-        // task.function = std::make_shared<std::packaged_task<void()>>([func] { func(); });
-
-        enqueue(task);
-
-        return future;
-    }
+    bool enqueue(std::function<void()> task);
+    void wait();
 
 private:
-    static void task_runner(ThreadPool* pool);
-
-    std::vector<std::thread> workers_;
-
-    struct ConcurrentQueue;
-    std::unique_ptr<ConcurrentQueue> tasks_;
+    struct TaskQueue;
+    struct Executor;
+    std::unique_ptr<TaskQueue> tasks_;
+    std::unique_ptr<Executor> executor_;
 };
 
 } // namespace cucim::concurrent

@@ -45,7 +45,7 @@ class Timer(ContextDecorator):
 
 
 with Timer("  Thread elapsed time (cuCIM)") as timer:
-    a = img.read_region()
+    a = img.read_region(num_workers=16)
     print(a.shape)
 
 

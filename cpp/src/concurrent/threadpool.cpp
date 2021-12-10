@@ -16,25 +16,22 @@
 
 #include "cucim/concurrent/threadpool.h"
 
-#include <pthread.h>
-
-#include <blockingconcurrentqueue.h>
-#include <concurrentqueue.h>
 #include <fmt/format.h>
+#include <taskflow/taskflow.hpp>
 
 namespace cucim::concurrent
 {
 
-// struct ThreadPool::ConcurrentQueue : public moodycamel::BlockingConcurrentQueue<ThreadPool::Task>
-// {
-//     // inherits  Constructor
-//     using moodycamel::BlockingConcurrentQueue<ThreadPool::Task>::BlockingConcurrentQueue;
-// };
-
-struct ThreadPool::ConcurrentQueue : public moodycamel::ConcurrentQueue<ThreadPool::Task>
+struct ThreadPool::TaskQueue : public tf::Taskflow
 {
     // inherits  Constructor
-    using moodycamel::ConcurrentQueue<ThreadPool::Task>::ConcurrentQueue;
+    using tf::Taskflow::Taskflow;
+};
+
+struct ThreadPool::Executor : public tf::Executor
+{
+    // inherits  Constructor
+    using tf::Executor::Executor;
 };
 
 
@@ -43,71 +40,30 @@ ThreadPool::ThreadPool(size_t num_workers)
     if (num_workers > 0)
     {
         // num_workers = std::thread::hardware_concurrency();
-        tasks_ = std::make_unique<ConcurrentQueue>(16000);
-        workers_.reserve(num_workers);
-        for (size_t i = 0; i != num_workers; ++i)
-        {
-            // auto worker = std::thread(&task_runner, this);
-
-            // sched_param sch;
-            // int policy;
-            // pthread_getschedparam(worker.native_handle(), &policy, &sch);
-            // sch.sched_priority = 20;
-
-            // if (pthread_setschedparam(worker.native_handle(), SCHED_FIFO, &sch))
-            // {
-            //     fmt::print(
-            //         "Failed: {} {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()),
-            //         std::strerror(errno));
-            // }
-            // workers_.push_back(std::move(worker));
-            workers_.push_back(std::thread(&task_runner, this));
-        }
+        tasks_ = std::make_unique<TaskQueue>();
+        executor_ = std::make_unique<Executor>(num_workers);
     }
 }
 
 ThreadPool::~ThreadPool()
 {
-    for (size_t i = 0; i != workers_.size(); ++i)
+    if (tasks_)
     {
-        tasks_->enqueue(Task(true)); // stop task
-    }
-    for (auto& worker : workers_)
-    {
-        worker.join();
+        executor_->run(*tasks_).wait();
     }
 }
 
-ThreadPool::Task::Task(bool stop /* = false */) : stop(stop)
+bool ThreadPool::enqueue(std::function<void()> task)
 {
+    auto t = tasks_->emplace([task]() { task(); });
+    return !t.empty();
 }
 
-bool ThreadPool::enqueue(Task& task)
+void ThreadPool::wait()
 {
-    return tasks_->enqueue(std::move(task));
-}
-
-void ThreadPool::task_runner(ThreadPool* pool)
-{
-    Task task;
-    moodycamel::ConsumerToken tok(*(pool->tasks_));
-    while (true)
+    if (tasks_)
     {
-        if (pool->tasks_->try_dequeue(tok, task))
-        {
-            if (task.stop)
-            {
-                break;
-            }
-            // (*task.function)();
-            task.function();
-            task.promise.set_value();
-        }
-        else
-        {
-            // fmt::print("ID:{} idle\n", std::hash<std::thread::id>{}(std::this_thread::get_id()));
-            std::this_thread::yield();
-        }
+        executor_->run(*tasks_).wait();
     }
 }
 

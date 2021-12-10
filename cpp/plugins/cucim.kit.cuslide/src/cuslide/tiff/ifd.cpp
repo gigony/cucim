@@ -184,7 +184,7 @@ bool IFD::read(const TIFF* tiff,
 
     if (is_read_optimizable())
     {
-        auto pool = std::make_unique<cucim::concurrent::ThreadPool>(16);
+        auto pool = std::make_unique<cucim::concurrent::ThreadPool>(request->num_workers);
         if (batch_size > 1)
         {
             ndim = 4;
@@ -548,7 +548,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
             uint32_t nbytes_tile_pixel_size_x = (offset_x == offset_ex) ?
                                                     (pixel_offset_ex - tile_pixel_offset_x + 1) * samples_per_pixel :
                                                     (tw - tile_pixel_offset_x) * samples_per_pixel;
-            auto func = [=, &image_cache]() {
+            const auto func = [=, &image_cache]() {
                 uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
                 uint32_t dest_pixel_index = dest_pixel_index_x;
                 uint8_t* tile_data = tile_raster;
@@ -638,7 +638,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                 }
             };
             (void)thread_pool;
-            thread_pool->run(func);
+            thread_pool->enqueue(std::move(func));
             // func();
             dest_pixel_index_x += nbytes_tile_pixel_size_x;
         }
