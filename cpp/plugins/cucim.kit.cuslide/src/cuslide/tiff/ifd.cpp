@@ -162,6 +162,7 @@ bool IFD::read(const TIFF* tiff,
     }
     cucim::io::Device out_device(device_name);
 
+
     int64_t sx = request->location[0];
     int64_t sy = request->location[1];
     uint32_t batch_size = request->batch_size;
@@ -183,6 +184,7 @@ bool IFD::read(const TIFF* tiff,
 
     if (is_read_optimizable())
     {
+        auto pool = std::make_unique<cucim::concurrent::ThreadPool>(16);
         if (batch_size > 1)
         {
             ndim = 4;
@@ -202,7 +204,7 @@ bool IFD::read(const TIFF* tiff,
 
         for (uint32_t i = 0; i < batch_size; ++i)
         {
-            if (!read_region_tiles(tiff, this, location[i * 2], location[i * 2 + 1], w, h, raster_ptr, out_device))
+            if (!read_region_tiles(tiff, this, location[i * 2], location[i * 2 + 1], w, h, raster_ptr, out_device, pool))
             {
                 fmt::print(stderr, "[Error] Failed to read region with libjpeg!\n");
             }
@@ -450,7 +452,8 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                             const int64_t w,
                             const int64_t h,
                             void* raster,
-                            const cucim::io::Device& out_device)
+                            const cucim::io::Device& out_device,
+                            std::unique_ptr<cucim::concurrent::ThreadPool>& thread_pool)
 {
     PROF_SCOPED_RANGE(PROF_EVENT(ifd_read_region_tiles));
     // Reference code: https://github.com/libjpeg-turbo/libjpeg-turbo/blob/master/tjexample.c
@@ -532,106 +535,110 @@ bool IFD::read_region_tiles(const TIFF* tiff,
         uint32_t dest_pixel_index_x = 0;
 
         uint32_t index = index_y + offset_sx;
-        // Calculate a simple hash value for the tile index
-        uint64_t index_hash = ifd_hash_value ^ (static_cast<uint64_t>(index) | (static_cast<uint64_t>(index) << 32));
         for (uint32_t offset_x = offset_sx; offset_x <= offset_ex; ++offset_x, ++index)
         {
             PROF_SCOPED_RANGE(PROF_EVENT_P(ifd_read_region_tiles_iter, index));
             auto tiledata_offset = static_cast<uint64_t>(ifd->image_piece_offsets_[index]);
             auto tiledata_size = static_cast<uint64_t>(ifd->image_piece_bytecounts_[index]);
 
+            // Calculate a simple hash value for the tile index
+            uint64_t index_hash = ifd_hash_value ^ (static_cast<uint64_t>(index) | (static_cast<uint64_t>(index) << 32));
+
             uint32_t tile_pixel_offset_x = (offset_x == offset_sx) ? pixel_offset_sx : 0;
             uint32_t nbytes_tile_pixel_size_x = (offset_x == offset_ex) ?
                                                     (pixel_offset_ex - tile_pixel_offset_x + 1) * samples_per_pixel :
                                                     (tw - tile_pixel_offset_x) * samples_per_pixel;
-            // auto func = [=, &image_cache]() {
-            uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
-            uint32_t dest_pixel_index = dest_pixel_index_x;
-            uint8_t* tile_data = tile_raster;
-            if (tiledata_size > 0)
-            {
-                auto key = image_cache.create_key(ifd_hash_value, index);
-                image_cache.lock(index_hash);
-                auto value = image_cache.find(key);
-                if (value)
+            auto func = [=, &image_cache]() {
+                uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
+                uint32_t dest_pixel_index = dest_pixel_index_x;
+                uint8_t* tile_data = tile_raster;
+                if (tiledata_size > 0)
                 {
-                    image_cache.unlock(index_hash);
-                    tile_data = static_cast<uint8_t*>(value->data);
+                    auto key = image_cache.create_key(ifd_hash_value, index);
+                    image_cache.lock(index_hash);
+                    auto value = image_cache.find(key);
+                    if (value)
+                    {
+                        image_cache.unlock(index_hash);
+                        tile_data = static_cast<uint8_t*>(value->data);
+                    }
+                    else
+                    {
+                        // Lifetime of tile_data is same with `value`
+                        // : do not access this data when `value` is not accessible.
+                        if (cache_type != cucim::cache::CacheType::kNoCache)
+                        {
+                            tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes));
+                        }
+
+                        {
+                            PROF_SCOPED_RANGE(PROF_EVENT(ifd_decompression));
+                            switch (compression_method)
+                            {
+                            case COMPRESSION_NONE:
+                                cuslide::raw::decode_raw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
+                                                         tile_raster_nbytes, out_device);
+                                break;
+                            case COMPRESSION_JPEG:
+                                cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                              jpegtable_data, jpegtable_count, &tile_data, out_device,
+                                                              jpeg_color_space);
+                                break;
+                            case COMPRESSION_ADOBE_DEFLATE:
+                            case COMPRESSION_DEFLATE:
+                                cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                                 &tile_data, tile_raster_nbytes, out_device);
+                                break;
+                            case cuslide::jpeg2k::kAperioJpeg2kYCbCr: // 33003
+                                cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                                    &tile_data, tile_raster_nbytes, out_device,
+                                                                    cuslide::jpeg2k::ColorSpace::kSYCC);
+                                break;
+                            case cuslide::jpeg2k::kAperioJpeg2kRGB: // 33005
+                                cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                                    &tile_data, tile_raster_nbytes, out_device,
+                                                                    cuslide::jpeg2k::ColorSpace::kRGB);
+                                break;
+                            case COMPRESSION_LZW:
+                                cuslide::lzw::decode_lzw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
+                                                         tile_raster_nbytes, out_device);
+                                // Apply unpredictor
+                                //   1: none, 2: horizontal differencing, 3: floating point predictor
+                                //   https://www.adobe.io/content/dam/udp/en/open/standards/tiff/TIFF6.pdf
+                                if (predictor == 2)
+                                {
+                                    cuslide::lzw::horAcc8(tile_data, tile_raster_nbytes, nbytes_tw);
+                                }
+                                break;
+                            default:
+                                throw std::runtime_error("Unsupported compression method");
+                            }
+                        }
+
+                        value = image_cache.create_value(tile_data, tile_raster_nbytes);
+                        image_cache.insert(key, value);
+                        image_cache.unlock(index_hash);
+                    }
+
+                    for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
+                         ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
+                    {
+                        memcpy(
+                            dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index, nbytes_tile_pixel_size_x);
+                    }
                 }
                 else
                 {
-                    // Lifetime of tile_data is same with `value`
-                    // : do not access this data when `value` is not accessible.
-                    if (cache_type != cucim::cache::CacheType::kNoCache)
+                    for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
+                         ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                     {
-                        tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes));
+                        // Set (255,255,255)
+                        memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
                     }
-
-                    {
-                        PROF_SCOPED_RANGE(PROF_EVENT(ifd_decompression));
-                        switch (compression_method)
-                        {
-                        case COMPRESSION_NONE:
-                            cuslide::raw::decode_raw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
-                                                     tile_raster_nbytes, out_device);
-                            break;
-                        case COMPRESSION_JPEG:
-                            cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                          jpegtable_data, jpegtable_count, &tile_data, out_device,
-                                                          jpeg_color_space);
-                            break;
-                        case COMPRESSION_ADOBE_DEFLATE:
-                        case COMPRESSION_DEFLATE:
-                            cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                             &tile_data, tile_raster_nbytes, out_device);
-                            break;
-                        case cuslide::jpeg2k::kAperioJpeg2kYCbCr: // 33003
-                            cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                                &tile_data, tile_raster_nbytes, out_device,
-                                                                cuslide::jpeg2k::ColorSpace::kSYCC);
-                            break;
-                        case cuslide::jpeg2k::kAperioJpeg2kRGB: // 33005
-                            cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                                &tile_data, tile_raster_nbytes, out_device,
-                                                                cuslide::jpeg2k::ColorSpace::kRGB);
-                            break;
-                        case COMPRESSION_LZW:
-                            cuslide::lzw::decode_lzw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
-                                                     tile_raster_nbytes, out_device);
-                            // Apply unpredictor
-                            //   1: none, 2: horizontal differencing, 3: floating point predictor
-                            //   https://www.adobe.io/content/dam/udp/en/open/standards/tiff/TIFF6.pdf
-                            if (predictor == 2)
-                            {
-                                cuslide::lzw::horAcc8(tile_data, tile_raster_nbytes, nbytes_tw);
-                            }
-                            break;
-                        default:
-                            throw std::runtime_error("Unsupported compression method");
-                        }
-                    }
-
-                    value = image_cache.create_value(tile_data, tile_raster_nbytes);
-                    image_cache.insert(key, value);
-                    image_cache.unlock(index_hash);
                 }
-
-                for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
-                     ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
-                {
-                    memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index, nbytes_tile_pixel_size_x);
-                }
-            }
-            else
-            {
-                for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
-                     ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
-                {
-                    // Set (255,255,255)
-                    memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
-                }
-            }
-            // };
+            };
+            (void)thread_pool;
+            thread_pool->run(func);
             // func();
             dest_pixel_index_x += nbytes_tile_pixel_size_x;
         }
@@ -782,13 +789,15 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
         uint32_t dest_pixel_index_x = 0;
 
         int64_t index = index_y + offset_sx;
-        // Calculate a simple hash value for the tile index
-        uint64_t index_hash = ifd_hash_value ^ (static_cast<uint64_t>(index) | (static_cast<uint64_t>(index) << 32));
         for (int64_t offset_x = offset_sx; offset_x <= offset_ex; ++offset_x, ++index)
         {
             PROF_SCOPED_RANGE(PROF_EVENT_P(ifd_read_region_tiles_boundary_iter, index));
             uint64_t tiledata_offset = 0;
             uint64_t tiledata_size = 0;
+
+            // Calculate a simple hash value for the tile index
+            uint64_t index_hash = ifd_hash_value ^ (static_cast<uint64_t>(index) | (static_cast<uint64_t>(index) << 32));
+
             if (offset_x >= offset_min_x && offset_x <= offset_max_x && index_y >= start_index_min_y &&
                 index_y <= end_index_max_y)
             {

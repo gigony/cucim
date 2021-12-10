@@ -19,6 +19,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <memory>
 
 #if CUCIM_SUPPORT_CUDA
 #    include <cuda_runtime.h>
@@ -648,9 +649,14 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
 
     //    cucim::io::format::ImageDataDesc image_data{};
 
-    cucim::io::format::ImageDataDesc* image_data =
-        static_cast<cucim::io::format::ImageDataDesc*>(cucim_malloc(sizeof(cucim::io::format::ImageDataDesc)));
-    memset(image_data, 0, sizeof(cucim::io::format::ImageDataDesc));
+    // cucim::io::format::ImageDataDesc* image_data =
+    //     static_cast<cucim::io::format::ImageDataDesc*>(cucim_malloc(sizeof(cucim::io::format::ImageDataDesc)));
+    auto image_data = std::unique_ptr<cucim::io::format::ImageDataDesc, decltype(cucim_free)*>(
+        reinterpret_cast<cucim::io::format::ImageDataDesc*>(cucim_malloc(sizeof(cucim::io::format::ImageDataDesc))),
+        cucim_free);
+
+
+    memset(image_data.get(), 0, sizeof(cucim::io::format::ImageDataDesc));
     try
     {
         // Read region from internal file if image_data_ is nullptr
@@ -661,9 +667,9 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
                 throw std::runtime_error("[Error] The image file is closed!");
             }
             if (!image_format_->image_reader.read(
-                    &file_handle_, image_metadata_, &request, image_data, nullptr /*out_metadata*/))
+                    &file_handle_, image_metadata_, &request, image_data.get(), nullptr /*out_metadata*/))
             {
-                cucim_free(image_data);
+                // cucim_free(image_data);
                 throw std::runtime_error("[Error] Failed to read image!");
             }
         }
@@ -674,7 +680,7 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     }
     catch (std::invalid_argument& e)
     {
-        cucim_free(image_data);
+        // cucim_free(image_data);
         throw e;
     }
 
@@ -825,7 +831,7 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     out_metadata.raw_data(raw_data);
     out_metadata.json_data(json_data);
 
-    return CuImage(this, &out_metadata.desc(), image_data);
+    return CuImage(this, &out_metadata.desc(), image_data.release());
 }
 
 std::set<std::string> CuImage::associated_images() const

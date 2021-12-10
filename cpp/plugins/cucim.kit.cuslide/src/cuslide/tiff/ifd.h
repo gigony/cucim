@@ -19,12 +19,13 @@
 
 #include "types.h"
 
+#include <memory>
+#include <vector>
+
+#include <cucim/concurrent/threadpool.h>
 #include <cucim/io/format/image_format.h>
 #include <cucim/io/device.h>
 //#include <tiffio.h>
-
-#include <memory>
-#include <vector>
 
 namespace cuslide::tiff
 {
@@ -45,7 +46,8 @@ public:
                                   const int64_t w,
                                   const int64_t h,
                                   void* raster,
-                                  const cucim::io::Device& out_device);
+                                  const cucim::io::Device& out_device,
+                                  std::unique_ptr<cucim::concurrent::ThreadPool>& thread_pool);
 
     static bool read_region_tiles_boundary(const TIFF* tiff,
                                            const IFD* ifd,

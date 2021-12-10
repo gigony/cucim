@@ -16,23 +16,53 @@
 
 #include "cucim/concurrent/threadpool.h"
 
+#include <pthread.h>
+
 #include <blockingconcurrentqueue.h>
+#include <concurrentqueue.h>
 #include <fmt/format.h>
 
 namespace cucim::concurrent
 {
 
-struct ThreadPool::ConcurrentQueue : public moodycamel::BlockingConcurrentQueue<ThreadPool::Task>
+// struct ThreadPool::ConcurrentQueue : public moodycamel::BlockingConcurrentQueue<ThreadPool::Task>
+// {
+//     // inherits  Constructor
+//     using moodycamel::BlockingConcurrentQueue<ThreadPool::Task>::BlockingConcurrentQueue;
+// };
+
+struct ThreadPool::ConcurrentQueue : public moodycamel::ConcurrentQueue<ThreadPool::Task>
 {
+    // inherits  Constructor
+    using moodycamel::ConcurrentQueue<ThreadPool::Task>::ConcurrentQueue;
 };
 
 
-ThreadPool::ThreadPool(size_t num_workers) : tasks_(std::make_unique<ConcurrentQueue>())
+ThreadPool::ThreadPool(size_t num_workers)
 {
-    workers_.reserve(num_workers);
-    for (size_t i = 0; i != num_workers; ++i)
+    if (num_workers > 0)
     {
-        workers_.push_back(std::thread(&task_runner, this));
+        // num_workers = std::thread::hardware_concurrency();
+        tasks_ = std::make_unique<ConcurrentQueue>(16000);
+        workers_.reserve(num_workers);
+        for (size_t i = 0; i != num_workers; ++i)
+        {
+            // auto worker = std::thread(&task_runner, this);
+
+            // sched_param sch;
+            // int policy;
+            // pthread_getschedparam(worker.native_handle(), &policy, &sch);
+            // sch.sched_priority = 20;
+
+            // if (pthread_setschedparam(worker.native_handle(), SCHED_FIFO, &sch))
+            // {
+            //     fmt::print(
+            //         "Failed: {} {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()),
+            //         std::strerror(errno));
+            // }
+            // workers_.push_back(std::move(worker));
+            workers_.push_back(std::thread(&task_runner, this));
+        }
     }
 }
 
@@ -63,14 +93,21 @@ void ThreadPool::task_runner(ThreadPool* pool)
     moodycamel::ConsumerToken tok(*(pool->tasks_));
     while (true)
     {
-        pool->tasks_->wait_dequeue(tok, task);
-        if (task.stop)
+        if (pool->tasks_->try_dequeue(tok, task))
         {
-            break;
+            if (task.stop)
+            {
+                break;
+            }
+            // (*task.function)();
+            task.function();
+            task.promise.set_value();
         }
-        // (*task.function)();
-        task.function();
-        task.promise.set_value();
+        else
+        {
+            // fmt::print("ID:{} idle\n", std::hash<std::thread::id>{}(std::this_thread::get_id()));
+            std::this_thread::yield();
+        }
     }
 }
 
