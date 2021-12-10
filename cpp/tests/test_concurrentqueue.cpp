@@ -19,6 +19,7 @@
 #include <catch2/catch.hpp>
 #include <cucim/concurrent/threadpool.h>
 #include <fmt/format.h>
+#include <taskflow/taskflow.hpp>
 
 // #include <blockingconcurrentqueue.h>
 // #include <future>
@@ -99,7 +100,9 @@
 
 TEST_CASE("Test concurrentqueue", "[test_concurrentqueue.cpp]")
 {
-    cucim::concurrent::ThreadPool pool(12);
+    // cucim::concurrent::ThreadPool pool(16);
+    tf::Executor executor(16);
+    tf::Taskflow tf;
     // ThreadPool pool(4);
 
     // 6.5 without std::packaged_task
@@ -121,12 +124,13 @@ TEST_CASE("Test concurrentqueue", "[test_concurrentqueue.cpp]")
         //     fmt::print("ID:{} ARG:{} {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), i, j);
         // };
         auto fu = [i] {
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
+            // std::this_thread::sleep_for(std::chrono::microseconds(10));
             // fmt::print("ID:{} ARG:{}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), i);
         };
-        // pool.run(fu, i);
-        pool.run(fu);
+        tf.emplace(std::move(fu));
+        // pool.run(fu);
     }
+    executor.run(tf).wait();
 
     REQUIRE(1 == 1);
 }

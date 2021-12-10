@@ -158,6 +158,7 @@ target_link_libraries(${CUCIM_PACKAGE_NAME}
             deps::json
             deps::nvtx3
             deps::concurrentqueue
+            deps::taskflow
         )
 
 if (CUCIM_STATIC_GDS)

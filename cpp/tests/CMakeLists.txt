@@ -58,6 +58,7 @@ target_link_libraries(cucim_tests
             deps::catch2
             deps::openslide
             deps::concurrentqueue
+            deps::taskflow
             Threads::Threads # -lpthread
         )
 
