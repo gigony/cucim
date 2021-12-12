@@ -21,6 +21,8 @@
 
 #include <fmt/format.h>
 
+#include "cucim/profiler/nvtx3.h"
+
 namespace cucim::loader
 {
 
@@ -48,7 +50,8 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
     for (size_t i = 0; i < buffer_item_len_; ++i)
     {
         raster_data_.emplace_back(std::make_unique<uint8_t[]>(buffer_size_));
-        fmt::print(stderr, "raster_data_[{}] = {} buffer_size: {}\n", i, (uint64_t)raster_data_[i].get(), buffer_size_);
+        // fmt::print(stderr, "raster_data_[{}] = {} buffer_size: {}\n", i, (uint64_t)raster_data_[i].get(),
+        // buffer_size_);
     }
 }
 

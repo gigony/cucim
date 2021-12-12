@@ -192,12 +192,12 @@ bool IFD::read(const TIFF* tiff,
         size_t one_raster_size = raster_size;
         raster_size *= batch_size;
 
-        if (!raster)
-        {
-            raster = cucim_malloc(raster_size); // RGB image
-            memset(raster, 0, raster_size);
-        }
 
+        // if (!raster)
+        // {
+        //     raster = cucim_malloc(raster_size); // RGB image
+        //     memset(raster, 0, raster_size);
+        // }
         const int64_t* location = request->location;
         const uint64_t& location_len = request->location_len;
         const int32_t& prefetch_factor = request->prefetch_factor;
@@ -293,6 +293,10 @@ bool IFD::read(const TIFF* tiff,
         }
     }
 
+    {
+        PROF_SCOPED_RANGE("read:8");
+    }
+
 
     int64_t* shape = static_cast<int64_t*>(cucim_malloc(sizeof(int64_t) * ndim));
     if (ndim == 3)
@@ -333,6 +337,9 @@ bool IFD::read(const TIFF* tiff,
     else
     {
         out_image_data->shm_name = nullptr;
+    }
+    {
+        PROF_SCOPED_RANGE("read:9");
     }
 
     return true;
@@ -561,7 +568,8 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                 uint8_t* tile_data = nullptr;
                 if (tiledata_size > 0)
                 {
-                    std::unique_ptr<uint8_t, decltype(cucim_free)*> tile_raster = std::unique_ptr<uint8_t, decltype(cucim_free)*>(nullptr, cucim_free);
+                    std::unique_ptr<uint8_t, decltype(cucim_free)*> tile_raster =
+                        std::unique_ptr<uint8_t, decltype(cucim_free)*>(nullptr, cucim_free);
 
                     auto key = image_cache.create_key(ifd_hash_value, index);
                     image_cache.lock(index_hash);
@@ -641,8 +649,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                          ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                     {
                         memcpy(
-                            dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
-                            nbytes_tile_pixel_size_x);
+                            dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index, nbytes_tile_pixel_size_x);
                     }
                 }
                 else
@@ -868,7 +875,8 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     }
 
                     uint8_t* tile_data = nullptr;
-                    std::unique_ptr<uint8_t, decltype(cucim_free)*> tile_raster = std::unique_ptr<uint8_t, decltype(cucim_free)*>(nullptr, cucim_free);
+                    std::unique_ptr<uint8_t, decltype(cucim_free)*> tile_raster =
+                        std::unique_ptr<uint8_t, decltype(cucim_free)*>(nullptr, cucim_free);
 
                     auto key = image_cache.create_key(ifd_hash_value, index);
                     image_cache.lock(index_hash);

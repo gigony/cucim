@@ -163,7 +163,23 @@
 				"options": {
 					"cwd": "${workspaceFolder}",
 					"env": {
-						// Workaround the environment variable issue: https://github.com/microsoft/vscode/issues/121470
+						"PATH": "${env:HOME}/.local/bin:${env:PATH}"
+					}
+				},
+				"presentation": {
+					"reveal": "always",
+					"focus": true
+				},
+				"problemMatcher": [],
+				"group": "build"
+			},
+			{
+				"label": "Build All (release)",
+				"type": "shell",
+				"command": "./run build_local all release",
+				"options": {
+					"cwd": "${workspaceFolder}",
+					"env": {
 						"PATH": "${env:HOME}/.local/bin:${env:PATH}"
 					}
 				},
@@ -176,24 +192,6 @@
 					"kind": "build",
 					"isDefault": true
 				}
-			},
-			{
-				"label": "Build All (release)",
-				"type": "shell",
-				"command": "./run build_local all release",
-				"options": {
-					"cwd": "${workspaceFolder}",
-					"env": {
-						// Workaround the environment variable issue: https://github.com/microsoft/vscode/issues/121470
-						"PATH": "${env:HOME}/.local/bin:${env:PATH}"
-					}
-				},
-				"presentation": {
-					"reveal": "always",
-					"focus": true
-				},
-				"problemMatcher": [],
-				"group": "build"
 			}
 		]
 	},

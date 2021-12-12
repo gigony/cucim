@@ -12,6 +12,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from contextlib import ContextDecorator
+from time import perf_counter
+from tifffile import TiffFile
+import sys
+import numpy as np
+from cucim import CuImage
+
+
+class Timer(ContextDecorator):
+    def __init__(self, message):
+        self.message = message
+        self.end = None
+
+    def elapsed_time(self):
+        self.end = perf_counter()
+        return self.end - self.start
+
+    def __enter__(self):
+        self.start = perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb):
+        if not self.end:
+            self.elapsed_time()
+        print("{} : {}".format(self.message, self.end - self.start))
+
+
+img = CuImage("notebooks/input/TUPAC-TR-467.svs")
+
+# cache = CuImage.cache("per_process", memory_capacity=1024)
+
+with Timer("  Thread elapsed time (cuCIM)") as timer:
+    a = img.read_region(num_workers=6)
+    print(a.shape)
+
+
+with Timer("  Thread elapsed time (tifffile)") as timer:
+    with TiffFile("notebooks/input/TUPAC-TR-467.svs") as tif:
+        a = tif.asarray()
+        print(a.shape)
+
+sys.exit(0)
+
 
 from openslide import OpenSlide
 import os

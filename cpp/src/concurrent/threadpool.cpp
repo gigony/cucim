@@ -19,6 +19,8 @@
 #include <fmt/format.h>
 #include <taskflow/taskflow.hpp>
 
+#include "cucim/profiler/nvtx3.h"
+
 namespace cucim::concurrent
 {
 
