@@ -635,6 +635,8 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                         image_cache.unlock(index_hash);
                     }
 
+                    // fmt::print(stderr, "dest_start_ptr: {}, dest_pixel_index: {}, count: {}\n",
+                    //            (uint64_t)dest_start_ptr, dest_pixel_index, ++ccc);
                     for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
                          ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                     {

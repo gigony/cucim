@@ -38,7 +38,7 @@ public:
 
     ~ThreadPool();
 
-    std::future<void>&& enqueue(std::function<void()>&& task);
+    std::future<void> enqueue(std::function<void()> task);
     void wait();
 
 private:

@@ -27,6 +27,10 @@ from cucim import CuImage
 # cache = CuImage.cache("per_process", memory_capacity=1024)
 
 img = CuImage("notebooks/input/TUPAC-TR-467.svs")
+a = img.read_region(num_workers=16)
+print("###finished")
+
+sys.exit(0)
 
 locations = [[0, 0], [100, 0], [200, 0], [300, 0],
              [0, 200], [100, 200], [200, 200], [300, 200]]

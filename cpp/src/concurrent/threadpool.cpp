@@ -59,9 +59,9 @@ ThreadPool::operator bool() const
     return (num_workers_ > 0);
 }
 
-std::future<void>&& ThreadPool::enqueue(std::function<void()>&& task)
+std::future<void> ThreadPool::enqueue(std::function<void()> task)
 {
-    auto future = executor_->async([task = std::move(task)]() { task(); });
+    auto future = executor_->async([task]() { task(); });
     return std::move(future);
 }
 
