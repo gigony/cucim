@@ -13,12 +13,34 @@
 # limitations under the License.
 #
 
+from openslide import OpenSlide
+import os
+import json
+import concurrent.futures
+from contextlib import ContextDecorator
+from time import perf_counter
 from tifffile import TiffFile
 import sys
 import numpy as np
-from time import perf_counter
-from contextlib import ContextDecorator
 from cucim import CuImage
+
+# cache = CuImage.cache("per_process", memory_capacity=1024)
+
+img = CuImage("notebooks/input/TUPAC-TR-467.svs")
+
+locations = [[0, 0], [100, 0], [200, 0], [300, 0],
+             [0, 200], [100, 200], [200, 200], [300, 200]]
+# locations = [[0, 0], [100, 0], [200, 0], [300, 0]]
+locations = np.array(locations)
+
+region = img.read_region(locations, (224, 224), batch_size=4, num_workers=8)
+print(region.shape)
+
+print("done!")
+
+
+sys.exit(0)
+
 
 cache = CuImage.cache("per_process", memory_capacity=1024)
 
@@ -44,39 +66,29 @@ class Timer(ContextDecorator):
         print("{} : {}".format(self.message, self.end - self.start))
 
 
-with Timer("  Thread elapsed time (cuCIM)") as timer:
-    a = img.read_region(num_workers=16)
-    print(a.shape)
+# with Timer("  Thread elapsed time (cuCIM)") as timer:
+#     a = img.read_region(num_workers=16)
+#     print(a.shape)
 
 
-with Timer("  Thread elapsed time (tifffile)") as timer:
-    with TiffFile("notebooks/input/TUPAC-TR-467.svs") as tif:
-        a = tif.asarray()
-        print(a.shape)
+# with Timer("  Thread elapsed time (tifffile)") as timer:
+#     with TiffFile("notebooks/input/TUPAC-TR-467.svs") as tif:
+#         a = tif.asarray()
+#         print(a.shape)
 
-# locations = [[0, 0], [100, 0], [200, 0], [300, 0],
-#              [0, 200], [100, 200], [200, 200], [300, 200]]
-# locations = np.array(locations)
+locations = [[0, 0], [100, 0], [200, 0], [300, 0],
+             [0, 200], [100, 200], [200, 200], [300, 200]]
+locations = np.array(locations)
 
-# region = img.read_region(locations, (224, 224), batch_size=4, num_workers=8)
-# print(region.shape)
-# # from cucim import CuImage
+region = img.read_region(locations, (224, 224), batch_size=4, num_workers=8)
+print(region.shape)
+# from cucim import CuImage
 
 # # img = CuImage("notebooks/input/image.tif")
 # # print(img.read_region((0, 0, 200, 200), (200, 200), num_workers=2).shape)
 
 sys.exit(0)
 
-
-import concurrent.futures
-import json
-import os
-from contextlib import ContextDecorator
-from time import perf_counter
-
-from openslide import OpenSlide
-
-from cucim import CuImage
 
 input_file = "notebooks/input/image2.tif"
 

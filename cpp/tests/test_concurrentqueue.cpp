@@ -107,7 +107,8 @@ TEST_CASE("Test concurrentqueue", "[test_concurrentqueue.cpp]")
 
     // 6.5 without std::packaged_task
     // 6.7 with std::packaged_task
-    for (int i = 0; i < 1000000; ++i)
+    int count = 0;
+    for (int i = 0; i < 100000; ++i)
     {
 
         // auto fu = pool.run(
@@ -123,14 +124,18 @@ TEST_CASE("Test concurrentqueue", "[test_concurrentqueue.cpp]")
 
         //     fmt::print("ID:{} ARG:{} {}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), i, j);
         // };
-        auto fu = [i] {
+        auto fu = [i, &count] {
+            ++count;
             // std::this_thread::sleep_for(std::chrono::microseconds(10));
             // fmt::print("ID:{} ARG:{}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), i);
         };
         tf.emplace(std::move(fu));
+        // executor.silent_async(std::move(fu));
         // pool.run(fu);
     }
     executor.run(tf).wait();
+    // executor.wait_for_all();
+    fmt::print("count:{}\n", count);
 
     REQUIRE(1 == 1);
 }

@@ -184,7 +184,6 @@ bool IFD::read(const TIFF* tiff,
 
     if (is_read_optimizable())
     {
-        auto pool = std::make_unique<cucim::concurrent::ThreadPool>(request->num_workers);
         if (batch_size > 1)
         {
             ndim = 4;
@@ -199,17 +198,33 @@ bool IFD::read(const TIFF* tiff,
             memset(raster, 0, raster_size);
         }
 
-        int64_t* location = request->location;
-        uint8_t* raster_ptr = static_cast<uint8_t*>(raster);
+        const int64_t* location = request->location;
+        const uint64_t& location_len = request->location_len;
+        const int32_t& prefetch_factor = request->prefetch_factor;
+        const uint32_t num_workers = request->num_workers;
 
-        for (uint32_t i = 0; i < batch_size; ++i)
-        {
-            if (!read_region_tiles(tiff, this, location[i * 2], location[i * 2 + 1], w, h, raster_ptr, out_device, pool))
+        const IFD* ifd = this;
+        const uint32_t load_size =
+            std::min(static_cast<uint64_t>(batch_size) * (1 + request->prefetch_factor), location_len);
+
+        auto load_func = [tiff, ifd, location, w, h, out_device](
+                             cucim::loader::ThreadBatchDataLoader* loader_ptr, uint64_t location_index) {
+            uint8_t* raster_ptr = loader_ptr->raster_pointer(location_index);
+
+            if (!read_region_tiles(tiff, ifd, location[location_index * 2], location[location_index * 2 + 1], w, h,
+                                   raster_ptr, out_device, loader_ptr))
             {
                 fmt::print(stderr, "[Error] Failed to read region with libjpeg!\n");
             }
-            raster_ptr += one_raster_size;
-        }
+        };
+
+        auto loader = std::make_unique<cucim::loader::ThreadBatchDataLoader>(
+            load_func, location_len, one_raster_size, batch_size, prefetch_factor, num_workers);
+
+        loader->request(load_size);
+        loader->wait_batch();
+        raster = loader->next_data();
+        out_image_data->loader = loader.release();
     }
     else
     {
@@ -453,7 +468,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                             const int64_t h,
                             void* raster,
                             const cucim::io::Device& out_device,
-                            std::unique_ptr<cucim::concurrent::ThreadPool>& thread_pool)
+                            cucim::loader::ThreadBatchDataLoader* loader)
 {
     PROF_SCOPED_RANGE(PROF_EVENT(ifd_read_region_tiles));
     // Reference code: https://github.com/libjpeg-turbo/libjpeg-turbo/blob/master/tjexample.c
@@ -467,7 +482,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
     // Handle out-of-boundary case
     if (sx < 0 || sy < 0 || sx >= width || sy >= height || ex < 0 || ey < 0 || ex >= width || ey >= height)
     {
-        return read_region_tiles_boundary(tiff, ifd, sx, sy, w, h, raster, out_device);
+        return read_region_tiles_boundary(tiff, ifd, sx, sy, w, h, raster, out_device, loader);
     }
     cucim::cache::ImageCache& image_cache = cucim::CuImage::cache_manager().cache();
     cucim::cache::CacheType cache_type = image_cache.type();
@@ -505,17 +520,9 @@ bool IFD::read_region_tiles(const TIFF* tiff,
     uint32_t start_index_y = offset_sy * stride_y;
     uint32_t end_index_y = offset_ey * stride_y;
 
-    // Memory for tile_raster would be manually allocated here, instead of using decode_libjpeg().
-    // Need to free the manually. Usually it is set to nullptr and memory is created by decode_libjpeg() by using
-    // tjAlloc() (Also need to free with tjFree() after use. See the documentation of tjAlloc() for the detail.)
     const int pixel_format = TJPF_RGB; // TODO: support other pixel format
     const int pixel_size_nbytes = tjPixelSize[pixel_format];
     const size_t tile_raster_nbytes = tw * th * pixel_size_nbytes;
-    uint8_t* tile_raster = nullptr;
-    if (cache_type == cucim::cache::CacheType::kNoCache)
-    {
-        tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
-    }
 
     int tiff_file = tiff->file_handle_.fd;
     uint64_t ifd_hash_value = ifd->hash_value_;
@@ -548,12 +555,14 @@ bool IFD::read_region_tiles(const TIFF* tiff,
             uint32_t nbytes_tile_pixel_size_x = (offset_x == offset_ex) ?
                                                     (pixel_offset_ex - tile_pixel_offset_x + 1) * samples_per_pixel :
                                                     (tw - tile_pixel_offset_x) * samples_per_pixel;
-            const auto func = [=, &image_cache]() {
+            auto decode_func = [=, &image_cache]() {
                 uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
                 uint32_t dest_pixel_index = dest_pixel_index_x;
-                uint8_t* tile_data = tile_raster;
+                uint8_t* tile_data = nullptr;
                 if (tiledata_size > 0)
                 {
+                    std::unique_ptr<uint8_t, decltype(cucim_free)*> tile_raster = std::unique_ptr<uint8_t, decltype(cucim_free)*>(nullptr, cucim_free);
+
                     auto key = image_cache.create_key(ifd_hash_value, index);
                     image_cache.lock(index_hash);
                     auto value = image_cache.find(key);
@@ -570,7 +579,13 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                         {
                             tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes));
                         }
-
+                        else
+                        {
+                            // Allocate temporary buffer for tile data
+                            tile_raster = std::unique_ptr<uint8_t, decltype(cucim_free)*>(
+                                reinterpret_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes)), cucim_free);
+                            tile_data = tile_raster.get();
+                        }
                         {
                             PROF_SCOPED_RANGE(PROF_EVENT(ifd_decompression));
                             switch (compression_method)
@@ -624,7 +639,8 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                          ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                     {
                         memcpy(
-                            dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index, nbytes_tile_pixel_size_x);
+                            dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
+                            nbytes_tile_pixel_size_x);
                     }
                 }
                 else
@@ -637,17 +653,19 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                     }
                 }
             };
-            (void)thread_pool;
-            thread_pool->enqueue(std::move(func));
-            // func();
+
+            if (*loader)
+            {
+                loader->enqueue(decode_func);
+            }
+            else
+            {
+                decode_func();
+            }
+
             dest_pixel_index_x += nbytes_tile_pixel_size_x;
         }
         dest_start_ptr += dest_pixel_step_y * dest_pixel_offset_len_y;
-    }
-
-    if (tile_raster)
-    {
-        cucim_free(tile_raster);
     }
 
     return true;
@@ -660,7 +678,8 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                                      const int64_t w,
                                      const int64_t h,
                                      void* raster,
-                                     const cucim::io::Device& out_device)
+                                     const cucim::io::Device& out_device,
+                                     cucim::loader::ThreadBatchDataLoader* loader)
 {
     PROF_SCOPED_RANGE(PROF_EVENT(ifd_read_region_tiles_boundary));
     (void)out_device;
@@ -698,11 +717,6 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
     uint32_t th = ifd->tile_height_;
 
     const size_t tile_raster_nbytes = tw * th * pixel_size_nbytes;
-    uint8_t* tile_raster = nullptr;
-    if (cache_type == cucim::cache::CacheType::kNoCache)
-    {
-        tile_raster = static_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes));
-    }
 
     // TODO: revert this once we can get RGB data instead of RGBA
     uint32_t samples_per_pixel = 3; // ifd->samples_per_pixel();
@@ -813,140 +827,156 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
             uint32_t nbytes_tile_index_orig = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
             uint32_t dest_pixel_index_orig = dest_pixel_index_x;
 
-            // auto func =
-            //     [=, &image_cache]() {
-            uint32_t nbytes_tile_index = nbytes_tile_index_orig;
-            uint32_t dest_pixel_index = dest_pixel_index_orig;
+            auto decode_func = [=, &image_cache]() {
+                uint32_t nbytes_tile_index = nbytes_tile_index_orig;
+                uint32_t dest_pixel_index = dest_pixel_index_orig;
 
-            if (tiledata_size > 0)
-            {
-                bool copy_partial = false;
-                uint32_t fixed_nbytes_tile_pixel_size_x = nbytes_tile_pixel_size_x;
-                uint32_t fixed_tile_pixel_offset_ey = tile_pixel_offset_ey;
-
-                if (offset_x == offset_boundary_x)
+                if (tiledata_size > 0)
                 {
-                    copy_partial = true;
-                    if (offset_x != offset_ex)
-                    {
-                        fixed_nbytes_tile_pixel_size_x =
-                            (pixel_offset_boundary_x - tile_pixel_offset_x + 1) * samples_per_pixel;
-                    }
-                    else
-                    {
-                        fixed_nbytes_tile_pixel_size_x =
-                            (std::min(pixel_offset_boundary_x, pixel_offset_ex) - tile_pixel_offset_x + 1) *
-                            samples_per_pixel;
-                    }
-                }
-                if (index_y == boundary_index_y)
-                {
-                    copy_partial = true;
-                    if (index_y != end_index_y)
-                    {
-                        fixed_tile_pixel_offset_ey = pixel_offset_boundary_y;
-                    }
-                    else
-                    {
-                        fixed_tile_pixel_offset_ey = std::min(pixel_offset_boundary_y, pixel_offset_ey);
-                    }
-                }
+                    bool copy_partial = false;
+                    uint32_t fixed_nbytes_tile_pixel_size_x = nbytes_tile_pixel_size_x;
+                    uint32_t fixed_tile_pixel_offset_ey = tile_pixel_offset_ey;
 
-                uint8_t* tile_data = tile_raster;
-
-                auto key = image_cache.create_key(ifd_hash_value, index);
-                image_cache.lock(index_hash);
-                auto value = image_cache.find(key);
-                if (value)
-                {
-                    image_cache.unlock(index_hash);
-                    tile_data = static_cast<uint8_t*>(value->data);
-                }
-                else
-                {
-                    // Lifetime of tile_data is same with `value`
-                    // : do not access this data when `value` is not accessible.
-                    if (cache_type != cucim::cache::CacheType::kNoCache)
+                    if (offset_x == offset_boundary_x)
                     {
-                        tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes));
-                    }
-
-                    {
-                        PROF_SCOPED_RANGE(PROF_EVENT(ifd_decompression));
-                        switch (compression_method)
+                        copy_partial = true;
+                        if (offset_x != offset_ex)
                         {
-                        case COMPRESSION_NONE:
-                            cuslide::raw::decode_raw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
-                                                     tile_raster_nbytes, out_device);
-                            break;
-                        case COMPRESSION_JPEG:
-                            cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                          jpegtable_data, jpegtable_count, &tile_data, out_device,
-                                                          jpeg_color_space);
-                            break;
-                        case COMPRESSION_ADOBE_DEFLATE:
-                        case COMPRESSION_DEFLATE:
-                            cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                             &tile_data, tile_raster_nbytes, out_device);
-                            break;
-                        case cuslide::jpeg2k::kAperioJpeg2kYCbCr: // 33003
-                            cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                                &tile_data, tile_raster_nbytes, out_device,
-                                                                cuslide::jpeg2k::ColorSpace::kSYCC);
-                            break;
-                        case cuslide::jpeg2k::kAperioJpeg2kRGB: // 33005
-                            cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
-                                                                &tile_data, tile_raster_nbytes, out_device,
-                                                                cuslide::jpeg2k::ColorSpace::kRGB);
-                            break;
-                        case COMPRESSION_LZW:
-                            cuslide::lzw::decode_lzw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
-                                                     tile_raster_nbytes, out_device);
-                            // Apply unpredictor
-                            //   1: none, 2: horizontal differencing, 3: floating point predictor
-                            //   https://www.adobe.io/content/dam/udp/en/open/standards/tiff/TIFF6.pdf
-                            if (predictor == 2)
+                            fixed_nbytes_tile_pixel_size_x =
+                                (pixel_offset_boundary_x - tile_pixel_offset_x + 1) * samples_per_pixel;
+                        }
+                        else
+                        {
+                            fixed_nbytes_tile_pixel_size_x =
+                                (std::min(pixel_offset_boundary_x, pixel_offset_ex) - tile_pixel_offset_x + 1) *
+                                samples_per_pixel;
+                        }
+                    }
+                    if (index_y == boundary_index_y)
+                    {
+                        copy_partial = true;
+                        if (index_y != end_index_y)
+                        {
+                            fixed_tile_pixel_offset_ey = pixel_offset_boundary_y;
+                        }
+                        else
+                        {
+                            fixed_tile_pixel_offset_ey = std::min(pixel_offset_boundary_y, pixel_offset_ey);
+                        }
+                    }
+
+                    uint8_t* tile_data = nullptr;
+                    std::unique_ptr<uint8_t, decltype(cucim_free)*> tile_raster = std::unique_ptr<uint8_t, decltype(cucim_free)*>(nullptr, cucim_free);
+
+                    auto key = image_cache.create_key(ifd_hash_value, index);
+                    image_cache.lock(index_hash);
+                    auto value = image_cache.find(key);
+                    if (value)
+                    {
+                        image_cache.unlock(index_hash);
+                        tile_data = static_cast<uint8_t*>(value->data);
+                    }
+                    else
+                    {
+                        // Lifetime of tile_data is same with `value`
+                        // : do not access this data when `value` is not accessible.
+                        if (cache_type != cucim::cache::CacheType::kNoCache)
+                        {
+                            tile_data = static_cast<uint8_t*>(image_cache.allocate(tile_raster_nbytes));
+                        }
+                        else
+                        {
+                            // Allocate temporary buffer for tile data
+                            tile_raster = std::unique_ptr<uint8_t, decltype(cucim_free)*>(
+                                reinterpret_cast<uint8_t*>(cucim_malloc(tile_raster_nbytes)), cucim_free);
+                            tile_data = tile_raster.get();
+                        }
+                        {
+                            PROF_SCOPED_RANGE(PROF_EVENT(ifd_decompression));
+                            switch (compression_method)
                             {
-                                cuslide::lzw::horAcc8(tile_data, tile_raster_nbytes, nbytes_tw);
+                            case COMPRESSION_NONE:
+                                cuslide::raw::decode_raw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
+                                                         tile_raster_nbytes, out_device);
+                                break;
+                            case COMPRESSION_JPEG:
+                                cuslide::jpeg::decode_libjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                              jpegtable_data, jpegtable_count, &tile_data, out_device,
+                                                              jpeg_color_space);
+                                break;
+                            case COMPRESSION_ADOBE_DEFLATE:
+                            case COMPRESSION_DEFLATE:
+                                cuslide::deflate::decode_deflate(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                                 &tile_data, tile_raster_nbytes, out_device);
+                                break;
+                            case cuslide::jpeg2k::kAperioJpeg2kYCbCr: // 33003
+                                cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                                    &tile_data, tile_raster_nbytes, out_device,
+                                                                    cuslide::jpeg2k::ColorSpace::kSYCC);
+                                break;
+                            case cuslide::jpeg2k::kAperioJpeg2kRGB: // 33005
+                                cuslide::jpeg2k::decode_libopenjpeg(tiff_file, nullptr, tiledata_offset, tiledata_size,
+                                                                    &tile_data, tile_raster_nbytes, out_device,
+                                                                    cuslide::jpeg2k::ColorSpace::kRGB);
+                                break;
+                            case COMPRESSION_LZW:
+                                cuslide::lzw::decode_lzw(tiff_file, nullptr, tiledata_offset, tiledata_size, &tile_data,
+                                                         tile_raster_nbytes, out_device);
+                                // Apply unpredictor
+                                //   1: none, 2: horizontal differencing, 3: floating point predictor
+                                //   https://www.adobe.io/content/dam/udp/en/open/standards/tiff/TIFF6.pdf
+                                if (predictor == 2)
+                                {
+                                    cuslide::lzw::horAcc8(tile_data, tile_raster_nbytes, nbytes_tw);
+                                }
+                                break;
+                            default:
+                                throw std::runtime_error("Unsupported compression method");
                             }
-                            break;
-                        default:
-                            throw std::runtime_error("Unsupported compression method");
                         }
+                        value = image_cache.create_value(tile_data, tile_raster_nbytes);
+                        image_cache.insert(key, value);
+                        image_cache.unlock(index_hash);
                     }
-                    value = image_cache.create_value(tile_data, tile_raster_nbytes);
-                    image_cache.insert(key, value);
-                    image_cache.unlock(index_hash);
-                }
-                if (copy_partial)
-                {
-                    uint32_t fill_gap_x = nbytes_tile_pixel_size_x - fixed_nbytes_tile_pixel_size_x;
-                    // Fill original, then fill white for remaining
-                    if (fill_gap_x > 0)
+                    if (copy_partial)
                     {
-                        for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
-                             ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
+                        uint32_t fill_gap_x = nbytes_tile_pixel_size_x - fixed_nbytes_tile_pixel_size_x;
+                        // Fill original, then fill white for remaining
+                        if (fill_gap_x > 0)
                         {
-                            memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
-                                   fixed_nbytes_tile_pixel_size_x);
-                            memset(dest_start_ptr + dest_pixel_index + fixed_nbytes_tile_pixel_size_x, background_value,
-                                   fill_gap_x);
+                            for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
+                                 ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
+                            {
+                                memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
+                                       fixed_nbytes_tile_pixel_size_x);
+                                memset(dest_start_ptr + dest_pixel_index + fixed_nbytes_tile_pixel_size_x,
+                                       background_value, fill_gap_x);
+                            }
+                        }
+                        else
+                        {
+                            for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
+                                 ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
+                            {
+                                memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
+                                       fixed_nbytes_tile_pixel_size_x);
+                            }
+                        }
+
+                        for (uint32_t ty = fixed_tile_pixel_offset_ey + 1; ty <= tile_pixel_offset_ey;
+                             ++ty, dest_pixel_index += dest_pixel_step_y)
+                        {
+                            memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
                         }
                     }
                     else
                     {
-                        for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
+                        for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
                              ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                         {
                             memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
-                                   fixed_nbytes_tile_pixel_size_x);
+                                   nbytes_tile_pixel_size_x);
                         }
-                    }
-
-                    for (uint32_t ty = fixed_tile_pixel_offset_ey + 1; ty <= tile_pixel_offset_ey;
-                         ++ty, dest_pixel_index += dest_pixel_step_y)
-                    {
-                        memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
                     }
                 }
                 else
@@ -954,31 +984,24 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
                          ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                     {
-                        memcpy(
-                            dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index, nbytes_tile_pixel_size_x);
+                        // Set (255,255,255)
+                        memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
                     }
                 }
+            };
+
+            if (*loader)
+            {
+                loader->enqueue(std::move(decode_func));
             }
             else
             {
-                for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
-                     ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
-                {
-                    // Set (255,255,255)
-                    memset(dest_start_ptr + dest_pixel_index, background_value, nbytes_tile_pixel_size_x);
-                }
+                decode_func();
             }
-            //     };
-
-            // func();
 
             dest_pixel_index_x += nbytes_tile_pixel_size_x;
         }
         dest_start_ptr += dest_pixel_step_y * dest_pixel_offset_len_y;
-    }
-    if (tile_raster)
-    {
-        cucim_free(tile_raster);
     }
     return true;
 }

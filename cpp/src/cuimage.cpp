@@ -26,6 +26,7 @@
 #endif
 #include <fmt/format.h>
 
+#include "cucim/loader/thread_batch_data_loader.h"
 #include "cucim/profiler/nvtx3.h"
 #include "cucim/util/cuda.h"
 #include "cucim/util/file.h"
@@ -303,6 +304,12 @@ CuImage::~CuImage()
         {
             cucim_free(image_data_->shm_name);
             image_data_->shm_name = nullptr;
+        }
+        if (image_data_->loader)
+        {
+            auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data_->loader);
+            delete loader;
+            image_data_->loader = nullptr;
         }
         cucim_free(image_data_);
         image_data_ = nullptr;
@@ -633,7 +640,7 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     }
 
     uint32_t size_ndim = size.size();
-    uint32_t location_len = location.size() / size_ndim;
+    uint64_t location_len = location.size() / size_ndim;
     std::string device_name = std::string(device);
     cucim::io::format::ImageReaderRegionRequestDesc request{};
     request.location = location.data();
@@ -654,9 +661,8 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     auto image_data = std::unique_ptr<cucim::io::format::ImageDataDesc, decltype(cucim_free)*>(
         reinterpret_cast<cucim::io::format::ImageDataDesc*>(cucim_malloc(sizeof(cucim::io::format::ImageDataDesc))),
         cucim_free);
-
-
     memset(image_data.get(), 0, sizeof(cucim::io::format::ImageDataDesc));
+
     try
     {
         // Read region from internal file if image_data_ is nullptr

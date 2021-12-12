@@ -699,7 +699,7 @@ bool TIFF::read(const cucim::io::format::ImageMetadataDesc* metadata,
     }
 
     const int32_t ndim = request->size_ndim;
-    const uint32_t location_len = request->location_len;
+    const uint64_t location_len = request->location_len;
 
     if (request->level >= level_to_ifd_idx_.size())
     {
@@ -733,7 +733,7 @@ bool TIFF::read(const cucim::io::format::ImageMetadataDesc* metadata,
     float downsample_factor = metadata->resolution_info.level_downsamples[request->level];
 
     // Change request based on downsample factor. (normalized value at level-0 -> real location at the requested level)
-    for (int32_t i = ndim * location_len - 1; i >= 0; --i)
+    for (int64_t i = ndim * location_len - 1; i >= 0; --i)
     {
         request->location[i] /= downsample_factor;
     }

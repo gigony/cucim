@@ -20,6 +20,7 @@
 #include "cucim/macros/api_header.h"
 
 #include <functional>
+#include <future>
 #include <memory>
 
 namespace cucim::concurrent
@@ -28,21 +29,24 @@ namespace cucim::concurrent
 class EXPORT_VISIBLE ThreadPool
 {
 public:
-    explicit ThreadPool(size_t num_workers);
+    explicit ThreadPool(int32_t num_workers);
     ThreadPool(const ThreadPool&) = delete;
 
     ThreadPool& operator=(const ThreadPool&) = delete;
 
+    operator bool() const;
+
     ~ThreadPool();
 
-    bool enqueue(std::function<void()> task);
+    std::future<void>&& enqueue(std::function<void()>&& task);
     void wait();
 
 private:
-    struct TaskQueue;
+    // struct TaskQueue;
     struct Executor;
-    std::unique_ptr<TaskQueue> tasks_;
+    // std::unique_ptr<TaskQueue> tasks_;
     std::unique_ptr<Executor> executor_;
+    size_t num_workers_;
 };
 
 } // namespace cucim::concurrent

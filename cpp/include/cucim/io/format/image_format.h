@@ -160,6 +160,7 @@ struct ImageDataDesc
 {
     DLTensor container;
     char* shm_name;
+    void* loader;
 };
 
 struct ImageCheckerDesc
@@ -205,7 +206,7 @@ struct ImageReaderRegionRequestDesc
 {
     int64_t* location = nullptr;
     int64_t* size = nullptr;
-    uint32_t location_len = 1;
+    uint64_t location_len = 1;
     int32_t size_ndim = 2;
     uint16_t level = 0;
     uint32_t num_workers = 0;

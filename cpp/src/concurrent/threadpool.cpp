@@ -22,11 +22,11 @@
 namespace cucim::concurrent
 {
 
-struct ThreadPool::TaskQueue : public tf::Taskflow
-{
-    // inherits  Constructor
-    using tf::Taskflow::Taskflow;
-};
+// struct ThreadPool::TaskQueue : public tf::Taskflow
+// {
+//     // inherits  Constructor
+//     using tf::Taskflow::Taskflow;
+// };
 
 struct ThreadPool::Executor : public tf::Executor
 {
@@ -35,35 +35,41 @@ struct ThreadPool::Executor : public tf::Executor
 };
 
 
-ThreadPool::ThreadPool(size_t num_workers)
+ThreadPool::ThreadPool(int32_t num_workers)
 {
+    num_workers_ = num_workers;
     if (num_workers > 0)
     {
         // num_workers = std::thread::hardware_concurrency();
-        tasks_ = std::make_unique<TaskQueue>();
+        // tasks_ = std::make_unique<TaskQueue>();
         executor_ = std::make_unique<Executor>(num_workers);
     }
 }
 
 ThreadPool::~ThreadPool()
 {
-    if (tasks_)
+    if (executor_)
     {
-        executor_->run(*tasks_).wait();
+        executor_->wait_for_all();
     }
 }
 
-bool ThreadPool::enqueue(std::function<void()> task)
+ThreadPool::operator bool() const
 {
-    auto t = tasks_->emplace([task]() { task(); });
-    return !t.empty();
+    return (num_workers_ > 0);
+}
+
+std::future<void>&& ThreadPool::enqueue(std::function<void()>&& task)
+{
+    auto future = executor_->async([task = std::move(task)]() { task(); });
+    return std::move(future);
 }
 
 void ThreadPool::wait()
 {
-    if (tasks_)
+    if (executor_)
     {
-        executor_->run(*tasks_).wait();
+        executor_->wait_for_all();
     }
 }
 

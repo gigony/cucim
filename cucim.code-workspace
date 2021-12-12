@@ -183,15 +183,17 @@
 				"command": "./run build_local all release",
 				"options": {
 					"cwd": "${workspaceFolder}",
-					// Workaround the environment variable issue: https://github.com/microsoft/vscode/issues/121470
-					"PATH": "${env:HOME}/.local/bin:${env:PATH}"
+					"env": {
+						// Workaround the environment variable issue: https://github.com/microsoft/vscode/issues/121470
+						"PATH": "${env:HOME}/.local/bin:${env:PATH}"
+					}
 				},
 				"presentation": {
 					"reveal": "always",
 					"focus": true
 				},
 				"problemMatcher": [],
-				"group": "build",
+				"group": "build"
 			}
 		]
 	},

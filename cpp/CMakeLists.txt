@@ -59,6 +59,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/io/device.h
         include/cucim/io/device_type.h
         include/cucim/io/format/image_format.h
+        include/cucim/loader/thread_batch_data_loader.h
         include/cucim/logger/logger.h
         include/cucim/logger/timer.h
         include/cucim/macros/defines.h
@@ -100,6 +101,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/io/device.cpp
         src/io/device_type.cpp
         src/io/format/image_format.cpp
+        src/loader/thread_batch_data_loader.cpp
         src/logger/logger.cpp
         src/logger/timer.cpp
         src/memory/memory_manager.cpp

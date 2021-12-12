@@ -25,6 +25,7 @@
 #include <cucim/concurrent/threadpool.h>
 #include <cucim/io/format/image_format.h>
 #include <cucim/io/device.h>
+#include <cucim/loader/thread_batch_data_loader.h>
 //#include <tiffio.h>
 
 namespace cuslide::tiff
@@ -47,7 +48,7 @@ public:
                                   const int64_t h,
                                   void* raster,
                                   const cucim::io::Device& out_device,
-                                  std::unique_ptr<cucim::concurrent::ThreadPool>& thread_pool);
+                                  cucim::loader::ThreadBatchDataLoader* loader);
 
     static bool read_region_tiles_boundary(const TIFF* tiff,
                                            const IFD* ifd,
@@ -56,7 +57,8 @@ public:
                                            const int64_t w,
                                            const int64_t h,
                                            void* raster,
-                                           const cucim::io::Device& out_device);
+                                           const cucim::io::Device& out_device,
+                                           cucim::loader::ThreadBatchDataLoader* loader);
 
     bool read(const TIFF* tiff,
               const cucim::io::format::ImageMetadataDesc* metadata,
