@@ -46,34 +46,40 @@ public:
     operator bool() const;
 
     uint8_t* raster_pointer(const uint64_t location_index) const;
-    uint32_t request(uint32_t load_size);
+    uint32_t request(uint32_t load_size = 0);
     uint32_t wait_batch();
     uint8_t* next_data();
+
+    uint64_t total_batch_count() const;
+    uint8_t* data() const;
+    uint32_t data_batch_size() const;
 
     // std::optional<std::future<void>> enqueue(const std::function<void()>&& task);
     bool enqueue(std::function<void()> task);
 
 private:
     LoadFunc load_func_;
-    uint64_t location_len_;
-    size_t one_rester_size_;
-    uint32_t batch_size_;
-    int32_t prefetch_factor_;
-    uint32_t num_workers_;
+    uint64_t location_len_ = 0;
+    size_t one_rester_size_ = 0;
+    uint32_t batch_size_ = 0;
+    int32_t prefetch_factor_ = 0;
+    uint32_t num_workers_ = 0;
 
-    size_t buffer_item_len_;
-    size_t buffer_size_;
+    size_t buffer_item_len_ = 0;
+    size_t buffer_size_ = 0;
     std::vector<std::unique_ptr<uint8_t[]>> raster_data_;
     std::deque<std::future<void>> tasks_;
     // NOTE: the order is important ('thread_pool_' depends on 'raster_data_' and 'tasks_')
     cucim::concurrent::ThreadPool thread_pool_;
 
-    uint64_t queued_item_count_;
-    uint64_t buffer_item_head_index_;
-    uint64_t buffer_item_tail_index_;
-
+    uint64_t queued_item_count_ = 0;
+    uint64_t buffer_item_head_index_ = 0;
+    uint64_t buffer_item_tail_index_ = 0;
 
     std::deque<uint32_t> batch_item_counts_;
+    uint64_t processed_batch_count_ = 0;
+    uint8_t* current_data_ = nullptr;
+    uint32_t current_data_batch_size_ = 0;
 };
 
 } // namespace cucim::loader

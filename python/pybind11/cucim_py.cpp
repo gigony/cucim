@@ -187,6 +187,24 @@ PYBIND11_MODULE(_cucim, m)
             },
             py::call_guard<py::gil_scoped_release>());
 
+    py::class_<CuImageIterator<CuImage>>(m, "CuImageIterator") //
+        .def(py::init<CuImage*, int64_t>(), doc::CuImageIterator::doc_CuImageIterator,
+             py::arg("cuimg"), //
+             py::arg("batch_index") = 0, py::call_guard<py::gil_scoped_release>())
+        .def(
+            "__len__",
+            [](CuImageIterator<CuImage>& it) { //
+                return it.size(); //
+            }, //
+            py::call_guard<py::gil_scoped_release>())
+
+        .def(
+            "__repr__", //
+            [](const CuImageIterator<CuImage>& it) { //
+                return fmt::format("<cucim.CuImageIterator index:{}>", it.index());
+            },
+            py::call_guard<py::gil_scoped_release>());
+
     // We can use `"cpu"` instead of `Device("cpu")`
     py::implicitly_convertible<const char*, io::Device>();
 }
@@ -482,7 +500,7 @@ py::object py_read_region(const CuImage& cuimg,
 
         py::object region = py::cast(region_ptr);
 
-        // Add `__array_interace__` or `__cuda_array_interface__` in runtime.
+        // Add `__array_inteface__` or `__cuda_array_interface__` in runtime.
         _set_array_interface(region);
 
         return region;
@@ -512,12 +530,18 @@ void _set_array_interface(const py::object& cuimg_obj)
     // TODO: using __array_struct__, access to array interface could be faster
     //       (https://numpy.org/doc/stable/reference/arrays.interface.html#c-struct-access)
     // TODO: check the performance difference between python int vs python long later.
+
+    loader::ThreadBatchDataLoader* loader = cuimg.loader();
     memory::DLTContainer container = cuimg.container();
 
-    const DLTensor* tensor = static_cast<DLTensor*>(container);
+    DLTensor* tensor = static_cast<DLTensor*>(container);
     if (!tensor)
     {
         return;
+    }
+    if (loader)
+    {
+        tensor->data = loader->next_data();
     }
 
     const char* type_str = container.numpy_dtype();

@@ -258,6 +258,17 @@ Returns:
 
 }; // namespace CuImage
 
+namespace CuImageIterator
+{
+
+// CuImageIterator(DataType* cuimg, int64_t index = 0);
+PYDOC(CuImageIterator, R"doc(
+Constructor of CuImageIterator.
+)doc")
+
+} // namespace CuImageIterator
+
+
 } // namespace cucim::doc
 
 #endif // PYCUCIM_CUCIM_PYDOC_H

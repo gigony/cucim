@@ -26,7 +26,6 @@
 #endif
 #include <fmt/format.h>
 
-#include "cucim/loader/thread_batch_data_loader.h"
 #include "cucim/profiler/nvtx3.h"
 #include "cucim/util/cuda.h"
 #include "cucim/util/file.h"
@@ -596,6 +595,18 @@ memory::DLTContainer CuImage::container() const
     }
 }
 
+loader::ThreadBatchDataLoader* CuImage::loader() const
+{
+    if (image_data_)
+    {
+        return reinterpret_cast<loader::ThreadBatchDataLoader*>(image_data_->loader);
+    }
+    else
+    {
+        return nullptr;
+    }
+}
+
 CuImage CuImage::read_region(std::vector<int64_t>&& location,
                              std::vector<int64_t>&& size,
                              uint16_t level,
@@ -1147,6 +1158,158 @@ bool CuImage::crop_image(const io::format::ImageReaderRegionRequestDesc& request
     }
 
     return true;
+}
+
+/////////////////////////////
+// Iterator implementation //
+/////////////////////////////
+
+CuImage::iterator CuImage::begin()
+{
+    return iterator(this);
+}
+CuImage::iterator CuImage::end()
+{
+    return iterator(this, -1);
+}
+
+CuImage::const_iterator CuImage::begin() const
+{
+    return const_iterator(this);
+}
+
+CuImage::const_iterator CuImage::end() const
+{
+    return const_iterator(this, -1);
+}
+
+template <typename DataType>
+CuImageIterator<DataType>::CuImageIterator(DataType* cuimg, int64_t batch_index)
+    : ptr_(cuimg), batch_index_(batch_index), total_batch_count_(0)
+{
+    if (batch_index < 0) // point to the end
+    {
+        auto& image_data = ptr_->image_data_;
+        if (ptr_->image_data_)
+        {
+            auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data->loader);
+            total_batch_count_ = loader->total_batch_count();
+            if (loader)
+            {
+                batch_index_ = total_batch_count_;
+            }
+            else
+            {
+                batch_index_ = 1;
+            }
+        }
+        else
+        {
+            batch_index_ = 0;
+        }
+    }
+    else
+    {
+        auto& image_data = ptr_->image_data_;
+        if (ptr_->image_data_)
+        {
+            auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data->loader);
+
+            if (loader)
+            {
+                total_batch_count_ = loader->total_batch_count();
+                if (batch_index >= static_cast<int64_t>(total_batch_count_))
+                {
+                    batch_index_ = total_batch_count_;
+                }
+                else
+                {
+                    batch_index_ = batch_index;
+                }
+            }
+            else
+            {
+                total_batch_count_ = 1;
+                if (batch_index >= 1)
+                {
+                    batch_index_ = 1;
+                }
+                else
+                {
+                    batch_index_ = 0;
+                }
+            }
+        }
+        else
+        {
+            throw std::out_of_range("Batch index out of range! ('image_data_' is null)");
+        }
+    }
+}
+
+template <typename DataType>
+typename CuImageIterator<DataType>::reference CuImageIterator<DataType>::operator*() const
+{
+    return *ptr_;
+}
+
+template <typename DataType>
+typename CuImageIterator<DataType>::pointer CuImageIterator<DataType>::operator->()
+{
+    return ptr_;
+}
+
+template <typename DataType>
+CuImageIterator<DataType>& CuImageIterator<DataType>::operator++()
+{
+    // Prefix increment
+    auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(ptr_->image_data_->loader);
+    auto next_data = loader->next_data();
+    if (next_data)
+    {
+        ptr_->image_data_->container.data = next_data;
+        ++batch_index_;
+    }
+    return *this;
+}
+
+template <typename DataType>
+CuImageIterator<DataType> CuImageIterator<DataType>::operator++(int)
+{
+    // Postfix increment
+    auto temp(*this);
+    auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(ptr_->image_data_->loader);
+    auto next_data = loader->next_data();
+    if (next_data)
+    {
+        ptr_->image_data_->container.data = next_data;
+        ++batch_index_;
+    }
+    return temp;
+}
+
+template <typename DataType>
+bool CuImageIterator<DataType>::operator==(const CuImageIterator<DataType>& other)
+{
+    return ptr_ == other.ptr_ && batch_index_ == other.batch_index_;
+};
+
+template <typename DataType>
+bool CuImageIterator<DataType>::operator!=(const CuImageIterator<DataType>& other)
+{
+    return ptr_ != other.ptr_ || batch_index_ != other.batch_index_;
+};
+
+template <typename DataType>
+int64_t CuImageIterator<DataType>::index() const
+{
+    return batch_index_;
+}
+
+template <typename DataType>
+uint64_t CuImageIterator<DataType>::size() const
+{
+    return total_batch_count_;
 }
 
 } // namespace cucim

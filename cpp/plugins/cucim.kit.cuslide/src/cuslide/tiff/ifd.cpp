@@ -188,20 +188,24 @@ bool IFD::read(const TIFF* tiff,
         {
             ndim = 4;
         }
+        const int64_t* location = request->location;
+        const uint64_t& location_len = request->location_len;
+        const int32_t& prefetch_factor = request->prefetch_factor;
+        const uint32_t num_workers = request->num_workers;
+
+        if (location_len < batch_size)
+        {
+            batch_size = location_len;
+        }
 
         size_t one_raster_size = raster_size;
         raster_size *= batch_size;
-
 
         // if (!raster)
         // {
         //     raster = cucim_malloc(raster_size); // RGB image
         //     memset(raster, 0, raster_size);
         // }
-        const int64_t* location = request->location;
-        const uint64_t& location_len = request->location_len;
-        const int32_t& prefetch_factor = request->prefetch_factor;
-        const uint32_t num_workers = request->num_workers;
 
         const IFD* ifd = this;
         const uint32_t load_size =
@@ -222,8 +226,7 @@ bool IFD::read(const TIFF* tiff,
             load_func, location_len, one_raster_size, batch_size, prefetch_factor, num_workers);
 
         loader->request(load_size);
-        loader->wait_batch();
-        raster = loader->next_data();
+        raster = nullptr; // no image data is copied to raster if it is batch mode
         out_image_data->loader = loader.release();
     }
     else
@@ -314,7 +317,7 @@ bool IFD::read(const TIFF* tiff,
     }
 
     // Copy the raster memory and free it if needed.
-    if (!is_buf_available)
+    if (!is_buf_available && raster)
     {
         cucim::memory::move_raster_from_host(&raster, raster_size, out_device);
     }
