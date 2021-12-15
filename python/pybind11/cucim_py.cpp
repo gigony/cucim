@@ -168,6 +168,12 @@ PYBIND11_MODULE(_cucim, m)
         .def("close", &CuImage::close, doc::CuImage::doc_close, py::call_guard<py::gil_scoped_release>()) //
         .def("__bool__", &CuImage::operator bool, py::call_guard<py::gil_scoped_release>()) //
         .def(
+            "__iter__", //
+            [](const std::shared_ptr<CuImage>& cuimg) { //
+                return cuimg->begin(); //
+            }, //
+            py::call_guard<py::gil_scoped_release>())
+        .def(
             "__enter__",
             [](const std::shared_ptr<CuImage>& cuimg) { //
                 return cuimg; //
@@ -188,16 +194,16 @@ PYBIND11_MODULE(_cucim, m)
             py::call_guard<py::gil_scoped_release>());
 
     py::class_<CuImageIterator<CuImage>>(m, "CuImageIterator") //
-        .def(py::init<CuImage*, int64_t>(), doc::CuImageIterator::doc_CuImageIterator,
+        .def(py::init<std::shared_ptr<CuImage>, bool>(), doc::CuImageIterator::doc_CuImageIterator,
              py::arg("cuimg"), //
-             py::arg("batch_index") = 0, py::call_guard<py::gil_scoped_release>())
+             py::arg("ending") = false, py::call_guard<py::gil_scoped_release>())
         .def(
             "__len__",
             [](CuImageIterator<CuImage>& it) { //
                 return it.size(); //
             }, //
             py::call_guard<py::gil_scoped_release>())
-
+        .def("__next__", &py_cuimage_iterator_next, py::call_guard<py::gil_scoped_release>())
         .def(
             "__repr__", //
             [](const CuImageIterator<CuImage>& it) { //
@@ -523,6 +529,74 @@ py::object py_associated_image(const CuImage& cuimg, const std::string& name, co
     }
 }
 
+py::object py_cuimage_iterator_next(CuImageIterator<CuImage>& it)
+{
+    bool stop_iteration = (it.index() == it.size());
+
+    // Get the next batch of images.
+    ++it;
+
+    auto cuimg = *it;
+    memory::DLTContainer container = cuimg->container();
+    DLTensor* tensor = static_cast<DLTensor*>(container);
+    cucim::loader::ThreadBatchDataLoader* loader = cuimg->loader();
+
+    {
+        py::gil_scoped_acquire scope_guard;
+        py::object cuimg_obj = py::cast(cuimg);
+        if (loader)
+        {
+            _set_array_interface(cuimg_obj);
+        }
+        if (stop_iteration)
+        {
+            throw py::stop_iteration();
+        }
+
+        // if (loader)
+        // {
+        //     py::tuple data = pybind11::make_tuple(py::int_(reinterpret_cast<uint64_t>(tensor->data)),
+        //     py::bool_(false)); py::tuple shape = vector2pytuple<pybind11::int_>(cuimg->shape());
+
+        //     switch (tensor->ctx.device_type)
+        //     {
+        //     case kDLCPU: {
+        //         py::dict array_interface = cuimg_obj.attr("__array_interface__");
+        //         array_interface["data"] = data;
+        //         array_interface["shape"] = shape;
+
+
+        //         // py::tuple data = array_interface["data"];
+        //         // fmt::print("data:{}\n", data[0].cast<int>());
+
+        //         // data[0] = py::int_(reinterpret_cast<uint64_t>(tensor->data));
+        //         // array_interface["shape"][0] = py::int_(tensor->shape[0]);
+        //     }
+        //     break;
+        //     case kDLGPU: {
+        //         py::dict array_interface = cuimg_obj.attr("__cuda_array_interface__");
+        //         array_interface["data"] = data;
+        //         array_interface["shape"] = shape;
+        //         // array_interface["data"][0] = py::int_(reinterpret_cast<uint64_t>(tensor->data));
+        //         // array_interface["shape"][0] = py::int_(tensor->shape[0]);
+        //     }
+        //     break;
+        //     default:
+        //         break;
+        //     }
+        // }
+
+        return cuimg_obj;
+    }
+
+    // {
+    //     py::gil_scoped_acquire scope_guard;
+
+    //     //    dict["data"] = py::make_tuple(py::int_(reinterpret_cast<uint64_t>(tensor->data)), py::bool_(false));
+    //     //     data[0] = py::int_(reinterpret_cast<uint64_t>(tensor->data));
+    // }
+}
+
 void _set_array_interface(const py::object& cuimg_obj)
 {
     const auto& cuimg = cuimg_obj.cast<const CuImage&>();
@@ -541,37 +615,63 @@ void _set_array_interface(const py::object& cuimg_obj)
     }
     if (loader)
     {
-        tensor->data = loader->next_data();
+        // Get the last available (batch) image.
+        tensor->data = loader->data();
     }
 
-    const char* type_str = container.numpy_dtype();
-    py::str typestr = py::str(type_str);
-
-    py::tuple data = pybind11::make_tuple(py::int_(reinterpret_cast<uint64_t>(tensor->data)), py::bool_(false));
-    py::list descr;
-    descr.append(py::make_tuple(""_s, typestr));
-
-    py::tuple shape = vector2pytuple<pybind11::int_>(cuimg.shape());
-
-    // TODO: depending on container's memory type, expose either array_interface or cuda_array_interface
-    switch (tensor->ctx.device_type)
+    if (tensor->data)
     {
-    case kDLCPU: {
-        // Reference: https://numpy.org/doc/stable/reference/arrays.interface.html
-        cuimg_obj.attr("__array_interface__") =
-            py::dict{ "data"_a = data,       "strides"_a = py::none(), "descr"_a = descr,
-                      "typestr"_a = typestr, "shape"_a = shape,        "version"_a = py::int_(3) };
-    }
-    break;
-    case kDLGPU: {
-        // Reference: https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html
-        cuimg_obj.attr("__cuda_array_interface__") =
-            py::dict{ "data"_a = data,   "strides"_a = py::none(),  "descr"_a = descr,     "typestr"_a = typestr,
-                      "shape"_a = shape, "version"_a = py::int_(3), "mask"_a = py::none(), "stream"_a = 1 };
-    }
-    break;
-    default:
+        const char* type_str = container.numpy_dtype();
+        py::str typestr = py::str(type_str);
+
+        py::tuple data = pybind11::make_tuple(py::int_(reinterpret_cast<uint64_t>(tensor->data)), py::bool_(false));
+        py::list descr;
+        descr.append(py::make_tuple(""_s, typestr));
+
+        py::tuple shape = vector2pytuple<pybind11::int_>(cuimg.shape());
+
+        // Depending on container's memory type, expose either array_interface or cuda_array_interface
+        switch (tensor->ctx.device_type)
+        {
+        case kDLCPU: {
+            // Reference: https://numpy.org/doc/stable/reference/arrays.interface.html
+            cuimg_obj.attr("__array_interface__") =
+                py::dict{ "data"_a = data,       "strides"_a = py::none(), "descr"_a = descr,
+                          "typestr"_a = typestr, "shape"_a = shape,        "version"_a = py::int_(3) };
+        }
         break;
+        case kDLGPU: {
+            // Reference: https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html
+            cuimg_obj.attr("__cuda_array_interface__") =
+                py::dict{ "data"_a = data,   "strides"_a = py::none(),  "descr"_a = descr,     "typestr"_a = typestr,
+                          "shape"_a = shape, "version"_a = py::int_(3), "mask"_a = py::none(), "stream"_a = 1 };
+        }
+        break;
+        default:
+            break;
+        }
+    }
+    else
+    {
+        switch (tensor->ctx.device_type)
+        {
+        case kDLCPU: {
+            if (py::hasattr(cuimg_obj, "__array_interface__"))
+            {
+                py::delattr(cuimg_obj, "__array_interface__");
+            }
+        }
+        break;
+        case kDLGPU: {
+            if (py::hasattr(cuimg_obj, "__cuda_array_interface__"))
+            {
+                py::delattr(cuimg_obj, "__cuda_array_interface__");
+            }
+        }
+        break;
+        default:
+            break;
+        }
     }
 }
 

@@ -29,6 +29,8 @@ namespace cucim
 
 // Forward declarations
 class CuImage;
+template <typename DataType = CuImage>
+class CuImageIterator;
 namespace io
 {
 class Device;
@@ -79,6 +81,8 @@ py::object py_read_region(const CuImage& cuimg,
                           const std::string& shm_name,
                           const py::kwargs& kwargs);
 py::object py_associated_image(const CuImage& cuimg, const std::string& name, const io::Device& device);
+
+py::object py_cuimage_iterator_next(CuImageIterator<CuImage>& it);
 
 void _set_array_interface(const py::object& cuimg_obj);
 } // namespace cucim

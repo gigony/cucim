@@ -50,7 +50,11 @@ public:
     uint32_t wait_batch();
     uint8_t* next_data();
 
+    uint64_t size() const;
+    uint32_t batch_size() const;
+
     uint64_t total_batch_count() const;
+    uint64_t processed_batch_count() const;
     uint8_t* data() const;
     uint32_t data_batch_size() const;
 

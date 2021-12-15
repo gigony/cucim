@@ -237,9 +237,9 @@ public:
     using difference_type = std::ptrdiff_t;
     using value_type = DataType;
     using pointer = value_type*;
-    using reference = value_type&;
+    using reference = std::shared_ptr<value_type>;
 
-    CuImageIterator(DataType* cuimg, int64_t batch_index = 0);
+    CuImageIterator(std::shared_ptr<DataType> cuimg, bool ending = false);
     CuImageIterator(const CuImageIterator<DataType>& it) = default;
 
     reference operator*() const;
@@ -253,7 +253,10 @@ public:
     uint64_t size() const; ///< number of batches
 
 private:
-    DataType* ptr_ = nullptr;
+    void increase_index_();
+
+    std::shared_ptr<DataType> ptr_;
+    void* loader_ = nullptr;
     int64_t batch_index_ = 0;
     uint64_t total_batch_count_ = 0;
 };

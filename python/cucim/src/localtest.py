@@ -12,6 +12,59 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import time
+import sys
+from cucim.clara import CuImageIterator
+import numpy as np
+from cucim import CuImage
+
+cache = CuImage.cache("per_process", memory_capacity=1024)
+
+img = CuImage("notebooks/input/TUPAC-TR-467.svs")
+
+locations = [[0, 0], [100, 0], [200, 0], [300, 0],
+             [0, 200], [100, 200], [200, 200]]
+locations = np.array(locations)
+
+# locations = [[0, 0], [100, 0], [200, 0]]
+# locations = np.array(locations)
+
+region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
+for batch in region:
+    img = np.asarray(batch)
+    time.sleep(0.2)
+    print(img.shape)
+#     for item in img:
+#         print(item.shape)
+
+# for batch in region:
+#     img = np.asarray(batch)
+#     print(img.shape)
+#     for item in img:
+#         print(item.shape)
+
+
+# region = img.read_region(locations[0], (224, 224), batch_size=4, num_workers=8)
+# print(region.shape)
+
+
+# a = iter(region)  # CuImageIterator(region)
+# print("hoho")
+# img2 = next(a)
+# print(dir(a))
+# a = iter(region)  # CuImageIterator(region)
+# print("hoho2")
+# img2 = next(a)
+# print(dir(a))
+# print("hoho3")
+# img2 = next(a)
+# print(dir(a))
+
+
+sys.exit(0)
+
+
 from contextlib import ContextDecorator
 from time import perf_counter
 from tifffile import TiffFile

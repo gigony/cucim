@@ -241,8 +241,6 @@ CuImage::~CuImage()
 {
     PROF_SCOPED_RANGE(PROF_EVENT(cuimage__cuimage));
     //    printf("[cuCIM] CuImage::~CuImage()\n");
-    close();
-    image_format_ = nullptr; // memory release is handled by the framework
     if (image_metadata_)
     {
         // Memory for json_data needs to be manually released if image_metadata_->json_data is not ""
@@ -306,13 +304,18 @@ CuImage::~CuImage()
         }
         if (image_data_->loader)
         {
+            fmt::print(stderr, "Loader will be removed!");
             auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data_->loader);
             delete loader;
             image_data_->loader = nullptr;
+            fmt::print(stderr, "Loader is removed!");
         }
         cucim_free(image_data_);
         image_data_ = nullptr;
     }
+
+    close(); // close file handle (NOTE:: close the file handle after loader is deleted)
+    image_format_ = nullptr; // memory release is handled by the framework
 }
 
 Framework* CuImage::get_framework()
@@ -943,6 +946,7 @@ void CuImage::save(std::string file_path) const
 
 void CuImage::close()
 {
+    fmt::print(stderr, "[Info] Closing image file {}\n", file_handle_.fd);
     if (file_handle_.client_data)
     {
         image_format_->image_parser.close(&file_handle_);
@@ -1166,40 +1170,52 @@ bool CuImage::crop_image(const io::format::ImageReaderRegionRequestDesc& request
 
 CuImage::iterator CuImage::begin()
 {
-    return iterator(this);
+    return iterator(shared_from_this());
 }
 CuImage::iterator CuImage::end()
 {
-    return iterator(this, -1);
+    return iterator(shared_from_this(), true);
 }
 
 CuImage::const_iterator CuImage::begin() const
 {
-    return const_iterator(this);
+    return const_iterator(shared_from_this());
 }
 
 CuImage::const_iterator CuImage::end() const
 {
-    return const_iterator(this, -1);
+    return const_iterator(shared_from_this(), true);
 }
 
 template <typename DataType>
-CuImageIterator<DataType>::CuImageIterator(DataType* cuimg, int64_t batch_index)
-    : ptr_(cuimg), batch_index_(batch_index), total_batch_count_(0)
+CuImageIterator<DataType>::CuImageIterator(std::shared_ptr<DataType> cuimg, bool ending)
+    : ptr_(cuimg), loader_(nullptr), batch_index_(0), total_batch_count_(0)
 {
-    if (batch_index < 0) // point to the end
+    if (!ptr_)
     {
-        auto& image_data = ptr_->image_data_;
-        if (ptr_->image_data_)
+        throw std::runtime_error("CuImageIterator: cuimg is nullptr!");
+    }
+
+    auto& image_data = ptr_->image_data_;
+    cucim::loader::ThreadBatchDataLoader* loader = nullptr;
+    if (image_data)
+    {
+        loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data->loader);
+        loader_ = loader;
+    }
+
+    if (ending) // point to the end
+    {
+        if (image_data)
         {
-            auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data->loader);
-            total_batch_count_ = loader->total_batch_count();
             if (loader)
             {
+                total_batch_count_ = loader->total_batch_count();
                 batch_index_ = total_batch_count_;
             }
             else
             {
+                total_batch_count_ = 1;
                 batch_index_ = 1;
             }
         }
@@ -1210,34 +1226,24 @@ CuImageIterator<DataType>::CuImageIterator(DataType* cuimg, int64_t batch_index)
     }
     else
     {
-        auto& image_data = ptr_->image_data_;
-        if (ptr_->image_data_)
+        if (image_data)
         {
-            auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data->loader);
-
             if (loader)
             {
                 total_batch_count_ = loader->total_batch_count();
-                if (batch_index >= static_cast<int64_t>(total_batch_count_))
+                if (loader->size() > 1)
                 {
-                    batch_index_ = total_batch_count_;
-                }
-                else
-                {
-                    batch_index_ = batch_index;
-                }
-            }
-            else
-            {
-                total_batch_count_ = 1;
-                if (batch_index >= 1)
-                {
-                    batch_index_ = 1;
+                    batch_index_ = loader->processed_batch_count();
                 }
                 else
                 {
                     batch_index_ = 0;
                 }
+            }
+            else
+            {
+                total_batch_count_ = 1;
+                batch_index_ = 0;
             }
         }
         else
@@ -1250,26 +1256,20 @@ CuImageIterator<DataType>::CuImageIterator(DataType* cuimg, int64_t batch_index)
 template <typename DataType>
 typename CuImageIterator<DataType>::reference CuImageIterator<DataType>::operator*() const
 {
-    return *ptr_;
+    return ptr_;
 }
 
 template <typename DataType>
 typename CuImageIterator<DataType>::pointer CuImageIterator<DataType>::operator->()
 {
-    return ptr_;
+    return ptr_.get();
 }
 
 template <typename DataType>
 CuImageIterator<DataType>& CuImageIterator<DataType>::operator++()
 {
     // Prefix increment
-    auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(ptr_->image_data_->loader);
-    auto next_data = loader->next_data();
-    if (next_data)
-    {
-        ptr_->image_data_->container.data = next_data;
-        ++batch_index_;
-    }
+    increase_index_();
     return *this;
 }
 
@@ -1278,26 +1278,20 @@ CuImageIterator<DataType> CuImageIterator<DataType>::operator++(int)
 {
     // Postfix increment
     auto temp(*this);
-    auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(ptr_->image_data_->loader);
-    auto next_data = loader->next_data();
-    if (next_data)
-    {
-        ptr_->image_data_->container.data = next_data;
-        ++batch_index_;
-    }
+    increase_index_();
     return temp;
 }
 
 template <typename DataType>
 bool CuImageIterator<DataType>::operator==(const CuImageIterator<DataType>& other)
 {
-    return ptr_ == other.ptr_ && batch_index_ == other.batch_index_;
+    return ptr_.get() == other.ptr_.get() && batch_index_ == other.batch_index_;
 };
 
 template <typename DataType>
 bool CuImageIterator<DataType>::operator!=(const CuImageIterator<DataType>& other)
 {
-    return ptr_ != other.ptr_ || batch_index_ != other.batch_index_;
+    return ptr_.get() != other.ptr_.get() || batch_index_ != other.batch_index_;
 };
 
 template <typename DataType>
@@ -1310,6 +1304,45 @@ template <typename DataType>
 uint64_t CuImageIterator<DataType>::size() const
 {
     return total_batch_count_;
+}
+
+template <typename DataType>
+void CuImageIterator<DataType>::increase_index_()
+{
+    auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(loader_);
+    if (loader)
+    {
+
+        auto next_data = loader->next_data();
+        if (next_data)
+        {
+            ptr_->image_data_->container.data = next_data;
+            if (loader->batch_size() > 1)
+            {
+                // set value for dimension 'N'
+                ptr_->image_data_->container.shape[0] = loader->data_batch_size();
+                ptr_->image_metadata_->shape[0] = loader->data_batch_size();
+            }
+        }
+        if (loader->size() > 1)
+        {
+            batch_index_ = loader->processed_batch_count();
+        }
+        else
+        {
+            if (batch_index_ < static_cast<int64_t>(total_batch_count_))
+            {
+                ++batch_index_;
+            }
+        }
+    }
+    else
+    {
+        if (batch_index_ < static_cast<int64_t>(total_batch_count_))
+        {
+            ++batch_index_;
+        }
+    }
 }
 
 } // namespace cucim

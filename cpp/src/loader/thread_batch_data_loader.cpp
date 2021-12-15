@@ -70,6 +70,7 @@ uint8_t* ThreadBatchDataLoader::raster_pointer(const uint64_t location_index) co
     assert(buffer_item_index < buffer_item_len_);
 
     uint8_t* batch_raster_ptr = raster_data_[buffer_item_index].get();
+    fmt::print(stderr, "write to index: {}, {}\n", buffer_item_index, raster_data_index);
     return &batch_raster_ptr[raster_data_index * one_rester_size_];
 }
 
@@ -120,13 +121,11 @@ uint8_t* ThreadBatchDataLoader::next_data()
 {
     if (processed_batch_count_ * batch_size_ >= location_len_)
     {
-        // remove buffer items that are no longer needed.
+        // Remove buffer items that are no longer needed.
         for (size_t i = 0; i < buffer_item_len_; ++i)
         {
             raster_data_[i] = nullptr;
         }
-        current_data_ = nullptr;
-        current_data_batch_size_ = 0;
         return nullptr;
     }
 
@@ -134,6 +133,7 @@ uint8_t* ThreadBatchDataLoader::next_data()
     wait_batch();
 
     uint8_t* batch_raster_ptr = raster_data_[buffer_item_head_index_].release();
+    fmt::print(stderr, "replace index: {}\n", buffer_item_head_index_);
     raster_data_[buffer_item_head_index_] = std::move(std::make_unique<uint8_t[]>(buffer_size_));
     buffer_item_head_index_ = (buffer_item_head_index_ + 1) % buffer_item_len_;
 
@@ -148,15 +148,31 @@ uint8_t* ThreadBatchDataLoader::next_data()
     return batch_raster_ptr;
 }
 
+uint64_t ThreadBatchDataLoader::size() const
+{
+    return location_len_;
+}
+
+uint32_t ThreadBatchDataLoader::batch_size() const
+{
+    return batch_size_;
+}
+
 uint64_t ThreadBatchDataLoader::total_batch_count() const
 {
     return (location_len_ + batch_size_ - 1) / batch_size_;
+}
+
+uint64_t ThreadBatchDataLoader::processed_batch_count() const
+{
+    return processed_batch_count_;
 }
 
 uint8_t* ThreadBatchDataLoader::data() const
 {
     return current_data_;
 }
+
 uint32_t ThreadBatchDataLoader::data_batch_size() const
 {
     return current_data_batch_size_;

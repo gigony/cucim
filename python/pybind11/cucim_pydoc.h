@@ -261,13 +261,12 @@ Returns:
 namespace CuImageIterator
 {
 
-// CuImageIterator(DataType* cuimg, int64_t index = 0);
+// CuImageIterator(std::shared_ptr<DataType> cuimg, bool ending = false);
 PYDOC(CuImageIterator, R"doc(
 Constructor of CuImageIterator.
 )doc")
 
 } // namespace CuImageIterator
-
 
 } // namespace cucim::doc
 

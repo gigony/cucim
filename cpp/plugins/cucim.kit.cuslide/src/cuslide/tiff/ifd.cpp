@@ -193,10 +193,10 @@ bool IFD::read(const TIFF* tiff,
         const int32_t& prefetch_factor = request->prefetch_factor;
         const uint32_t num_workers = request->num_workers;
 
-        if (location_len < batch_size)
-        {
-            batch_size = location_len;
-        }
+        // if (location_len < batch_size)
+        // {
+        //     batch_size = location_len;
+        // }
 
         size_t one_raster_size = raster_size;
         raster_size *= batch_size;

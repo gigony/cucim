@@ -52,6 +52,7 @@ ThreadPool::~ThreadPool()
 {
     if (executor_)
     {
+        fmt::print(stderr, "ThreadPool::~ThreadPool()\n");
         executor_->wait_for_all();
     }
 }
