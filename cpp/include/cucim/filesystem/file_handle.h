@@ -21,8 +21,11 @@
 #include "../macros/defines.h"
 #include <cstdio>
 #include <cstdint>
+#include <memory>
 
 typedef void* CUfileHandle_t;
+typedef void* CuCIMFileHandle_share;
+typedef void* CuCIMFileHandle_ptr;
 
 enum class FileHandleType: uint16_t
 {
@@ -35,20 +38,26 @@ enum class FileHandleType: uint16_t
 
 
 #if CUCIM_PLATFORM_LINUX
-struct CuCIMFileHandle
+
+struct EXPORT_VISIBLE CuCIMFileHandle : public std::enable_shared_from_this<CuCIMFileHandle>
 {
-#    ifdef __cplusplus
-    EXPORT_VISIBLE CuCIMFileHandle();
-    EXPORT_VISIBLE CuCIMFileHandle(int fd, CUfileHandle_t cufile, FileHandleType type, char* path, void* client_data);
-    EXPORT_VISIBLE CuCIMFileHandle(int fd,
-                                   CUfileHandle_t cufile,
-                                   FileHandleType type,
-                                   char* path,
-                                   void* client_data,
-                                   uint64_t dev,
-                                   uint64_t ino,
-                                   int64_t mtime);
-#    endif
+    CuCIMFileHandle();
+    CuCIMFileHandle(int fd, CUfileHandle_t cufile, FileHandleType type, char* path, void* client_data);
+    CuCIMFileHandle(int fd,
+                    CUfileHandle_t cufile,
+                    FileHandleType type,
+                    char* path,
+                    void* client_data,
+                    uint64_t dev,
+                    uint64_t ino,
+                    int64_t mtime);
+
+    ~CuCIMFileHandle()
+    {
+        // CuCIMFileHandle_p file_handle_share = new std::shared_ptr<CuCIMFileHandle>(this);
+        deleter(this);
+    }
+
     int fd;
     CUfileHandle_t cufile;
     FileHandleType type; /// 1: POSIX, 2: POSIX+ODIRECT, 4: MemoryMapped, 8: GPUDirect
@@ -58,6 +67,7 @@ struct CuCIMFileHandle
     uint64_t dev;
     uint64_t ino;
     int64_t mtime;
+    bool (*deleter)(CuCIMFileHandle_ptr);
 };
 #else
 #    error "This platform is not supported!"

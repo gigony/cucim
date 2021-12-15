@@ -184,7 +184,7 @@ struct ImageParserDesc
      * @param file_path
      * @return
      */
-    CuCIMFileHandle(CUCIM_ABI* open)(const char* file_path);
+    CuCIMFileHandle_share(CUCIM_ABI* open)(const char* file_path);
 
     /**
      *
@@ -192,14 +192,14 @@ struct ImageParserDesc
      * @param out_metadata
      * @return
      */
-    bool(CUCIM_ABI* parse)(CuCIMFileHandle* handle, ImageMetadataDesc* out_metadata);
+    bool(CUCIM_ABI* parse)(CuCIMFileHandle_ptr handle, ImageMetadataDesc* out_metadata);
 
     /**
      *
      * @param handle
      * @return
      */
-    bool(CUCIM_ABI* close)(CuCIMFileHandle* handle);
+    bool(CUCIM_ABI* close)(CuCIMFileHandle_share handle);
 };
 
 struct ImageReaderRegionRequestDesc
@@ -230,7 +230,7 @@ struct ImageReaderDesc
      * @param out_image_metadata needed for associated_image
      * @return
      */
-    bool(CUCIM_ABI* read)(const CuCIMFileHandle* handle,
+    bool(CUCIM_ABI* read)(const CuCIMFileHandle_ptr handle,
                           const ImageMetadataDesc* metadata,
                           const ImageReaderRegionRequestDesc* request,
                           ImageDataDesc* out_image_data,
@@ -246,7 +246,7 @@ struct ImageWriterDesc
      * @param image_data
      * @return
      */
-    bool(CUCIM_ABI* write)(const CuCIMFileHandle* handle,
+    bool(CUCIM_ABI* write)(const CuCIMFileHandle_ptr handle,
                            const ImageMetadataDesc* metadata,
                            const ImageDataDesc* image_data);
 };

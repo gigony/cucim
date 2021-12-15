@@ -32,15 +32,22 @@ locations = np.array(locations)
 
 region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
 for batch in region:
-    img = np.asarray(batch)
-    time.sleep(0.2)
-    print(img.shape)
+    img2 = np.asarray(batch)
+    print(img2.shape)
 #     for item in img:
 #         print(item.shape)
 
-# for batch in region:
-#     img = np.asarray(batch)
-#     print(img.shape)
+for batch in region:
+    img2 = np.asarray(batch)
+    print(img2.shape)
+
+
+region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
+for batch in region:
+    img2 = np.asarray(batch)
+    print(img2.shape)
+
+
 #     for item in img:
 #         print(item.shape)
 

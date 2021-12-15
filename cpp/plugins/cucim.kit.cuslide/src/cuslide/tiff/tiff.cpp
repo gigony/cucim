@@ -281,8 +281,7 @@ TIFF::TIFF(const cucim::filesystem::Path& file_path, int mode) : file_path_(file
         cucim_free(file_path_cstr);
         throw std::invalid_argument(fmt::format("Cannot load {}!", file_path));
     }
-    // TODO: make file_handle_ object to pointer
-    file_handle_ = CuCIMFileHandle{ fd, nullptr, FileHandleType::kPosix, file_path_cstr, this };
+    file_handle_ = std::make_shared<CuCIMFileHandle>(fd, nullptr, FileHandleType::kPosix, file_path_cstr, this);
 
     // TODO: warning if the file is big endian
     is_big_endian_ = ::TIFFIsBigEndian(tiff_client_);
@@ -318,17 +317,7 @@ void TIFF::close()
         TIFFClose(tiff_client_);
         tiff_client_ = nullptr;
     }
-    if (file_handle_.path)
-    {
-        cucim_free(file_handle_.path);
-        file_handle_.path = nullptr;
-    }
-    if (file_handle_.client_data)
-    {
-        // Deleting file_handle_.client_data is parser_close()'s responsibility
-        // Do not execute this: `delete static_cast<cuslide::tiff::TIFF*>(file_handle_.client_data);`
-        file_handle_.client_data = nullptr;
-    }
+    file_handle_ = nullptr;
     if (metadata_)
     {
         delete reinterpret_cast<json*>(metadata_);
@@ -831,8 +820,9 @@ bool TIFF::read_associated_image(const cucim::io::format::ImageMetadataDesc* met
                 switch (compression_method)
                 {
                 case COMPRESSION_JPEG:
-                    if (!cuslide::jpeg::decode_libjpeg(file_handle_.fd, nullptr /*jpeg_buf*/, offset, size, jpegtable_data,
-                                                       jpegtable_count, &target_ptr, out_device, jpeg_color_space))
+                    if (!cuslide::jpeg::decode_libjpeg(file_handle_->fd, nullptr /*jpeg_buf*/, offset, size,
+                                                       jpegtable_data, jpegtable_count, &target_ptr, out_device,
+                                                       jpeg_color_space))
                     {
                         cucim_free(raster);
                         fmt::print(stderr, "[Error] Failed to read region with libjpeg!\n");
@@ -840,8 +830,8 @@ bool TIFF::read_associated_image(const cucim::io::format::ImageMetadataDesc* met
                     }
                     break;
                 case COMPRESSION_LZW:
-                    if (!cuslide::lzw::decode_lzw(
-                            file_handle_.fd, nullptr /*jpeg_buf*/, offset, size, &target_ptr, strip_nbytes, out_device))
+                    if (!cuslide::lzw::decode_lzw(file_handle_->fd, nullptr /*jpeg_buf*/, offset, size, &target_ptr,
+                                                  strip_nbytes, out_device))
                     {
                         cucim_free(raster);
                         fmt::print(stderr, "[Error] Failed to read region with lzw decoder!\n");
@@ -1041,7 +1031,7 @@ cucim::filesystem::Path TIFF::file_path() const
     return file_path_;
 }
 
-CuCIMFileHandle TIFF::file_handle() const
+std::shared_ptr<CuCIMFileHandle> TIFF::file_handle() const
 {
     return file_handle_;
 }

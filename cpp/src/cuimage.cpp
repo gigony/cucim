@@ -151,14 +151,19 @@ CuImage::CuImage(const filesystem::Path& path)
     // TODO: need to detect available format for the file path
     {
         PROF_SCOPED_RANGE(PROF_EVENT(cuimage_cuimage_open));
-        file_handle_ = image_format_->image_parser.open(path.c_str());
+        std::shared_ptr<CuCIMFileHandle>* file_handle_shared =
+            reinterpret_cast<std::shared_ptr<CuCIMFileHandle>*>(image_format_->image_parser.open(path.c_str()));
+        file_handle_ = *file_handle_shared;
+        delete file_handle_shared;
+
+        file_handle_->deleter = image_format_->image_parser.close;
     }
-    //    printf("[GB] file_handle: %s\n", file_handle_.path);
-    //    fmt::print("[GB] CuImage path char: '{}'\n", file_handle_.path[0]);
+    //    printf("[GB] file_handle: %s\n", file_handle_->path);
+    //    fmt::print("[GB] CuImage path char: '{}'\n", file_handle_->path[0]);
 
     io::format::ImageMetadata& image_metadata = *(new io::format::ImageMetadata{});
     image_metadata_ = &image_metadata.desc();
-    is_loaded_ = image_format_->image_parser.parse(&file_handle_, image_metadata_);
+    is_loaded_ = image_format_->image_parser.parse(file_handle_.get(), image_metadata_);
     dim_indices_ = DimIndices(image_metadata_->dims);
 
     auto& associated_image_info = image_metadata_->associated_image_info;
@@ -189,7 +194,7 @@ CuImage::CuImage(const filesystem::Path& path, const std::string& plugin_name)
 CuImage::CuImage(CuImage&& cuimg) : std::enable_shared_from_this<CuImage>()
 {
     PROF_SCOPED_RANGE(PROF_EVENT_P(cuimage_cuimage, 3));
-    // printf("[cuCIM] CuImage::CuImage(CuImage&& cuimg) %s\n", cuimg.file_handle_.path);
+    // printf("[cuCIM] CuImage::CuImage(CuImage&& cuimg) %s\n", cuimg.file_handle_->path);
     (void)cuimg;
     std::swap(file_handle_, cuimg.file_handle_);
     std::swap(image_format_, cuimg.image_format_);
@@ -210,7 +215,7 @@ CuImage::CuImage(const CuImage* cuimg,
     //        "[cuCIM] CuImage::CuImage(CuImage* cuimg, io::format::ImageMetadataDesc* image_metadata,
     //        cucim::io::format::ImageDataDesc* image_data)\n");
 
-    //    file_handle_ = cuimg->file_handle_; ==> Don't do this. it will cause a double free.
+    file_handle_ = cuimg->file_handle_;
     image_format_ = cuimg->image_format_;
     image_metadata_ = image_metadata;
     image_data_ = image_data;
@@ -234,7 +239,7 @@ CuImage::CuImage(const CuImage* cuimg,
 CuImage::CuImage() : std::enable_shared_from_this<CuImage>()
 {
     PROF_SCOPED_RANGE(PROF_EVENT_P(cuimage_cuimage, 5));
-    file_handle_.path = const_cast<char*>("<null>");
+    file_handle_->path = const_cast<char*>("<null>");
 }
 
 CuImage::~CuImage()
@@ -310,11 +315,13 @@ CuImage::~CuImage()
             image_data_->loader = nullptr;
             fmt::print(stderr, "Loader is removed!");
         }
+
+        close(); // close file handle (NOTE:: close the file handle after loader is deleted)
+
         cucim_free(image_data_);
         image_data_ = nullptr;
     }
 
-    close(); // close file handle (NOTE:: close the file handle after loader is deleted)
     image_format_ = nullptr; // memory release is handled by the framework
 }
 
@@ -361,7 +368,7 @@ bool CuImage::is_trace_enabled()
 
 filesystem::Path CuImage::path() const
 {
-    return file_handle_.path == nullptr ? "" : file_handle_.path;
+    return file_handle_->path == nullptr ? "" : file_handle_->path;
 }
 bool CuImage::is_loaded() const
 {
@@ -682,12 +689,12 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
         // Read region from internal file if image_data_ is nullptr
         if (image_data_ == nullptr)
         {
-            if (file_handle_.fd < 0) // file_handle_ is not opened
+            if (file_handle_->fd < 0) // file_handle_ is not opened
             {
                 throw std::runtime_error("[Error] The image file is closed!");
             }
             if (!image_format_->image_reader.read(
-                    &file_handle_, image_metadata_, &request, image_data.get(), nullptr /*out_metadata*/))
+                    file_handle_.get(), image_metadata_, &request, image_data.get(), nullptr /*out_metadata*/))
             {
                 // cucim_free(image_data);
                 throw std::runtime_error("[Error] Failed to read image!");
@@ -862,7 +869,7 @@ std::set<std::string> CuImage::associated_images() const
 CuImage CuImage::associated_image(const std::string& name, const io::Device& device) const
 {
     PROF_SCOPED_RANGE(PROF_EVENT(cuimage_associated_image));
-    if (file_handle_.fd < 0) // file_handle_ is not opened
+    if (file_handle_->fd < 0) // file_handle_ is not opened
     {
         throw std::runtime_error("[Error] The image file is closed!");
     }
@@ -880,7 +887,7 @@ CuImage CuImage::associated_image(const std::string& name, const io::Device& dev
         io::format::ImageMetadata& out_metadata = *(new io::format::ImageMetadata{});
 
         if (!image_format_->image_reader.read(
-                &file_handle_, image_metadata_, &request, out_image_data, &out_metadata.desc()))
+                file_handle_.get(), image_metadata_, &request, out_image_data, &out_metadata.desc()))
         {
             cucim_free(out_image_data);
             delete &out_metadata;
@@ -946,14 +953,13 @@ void CuImage::save(std::string file_path) const
 
 void CuImage::close()
 {
-    fmt::print(stderr, "[Info] Closing image file {}\n", file_handle_.fd);
-    if (file_handle_.client_data)
+    fmt::print(stderr, "CuImage::close(): {}\n", file_handle_.use_count());
+    if (file_handle_ && file_handle_->client_data)
     {
-        image_format_->image_parser.close(&file_handle_);
+        fmt::print(stderr, "[Info] Closing image file {}\n", file_handle_->fd);
+        // CuCIMFileHandle_share file_handle_share = new std::shared_ptr<CuCIMFileHandle>(file_handle_);
+        // image_format_->image_parser.close(file_handle_share);
     }
-    file_handle_.cufile = nullptr;
-    file_handle_.path = nullptr;
-    file_handle_.fd = -1;
 }
 
 void CuImage::ensure_init()

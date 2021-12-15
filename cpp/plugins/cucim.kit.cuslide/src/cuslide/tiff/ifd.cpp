@@ -139,7 +139,7 @@ IFD::IFD(TIFF* tiff, uint16_t index, ifd_offset_t offset) : tiff_(tiff), ifd_ind
         image_piece_bytecounts_.end(), &td_stripbytecount_p[0], &td_stripbytecount_p[image_piece_count_]);
 
     // Calculate hash value with IFD index
-    hash_value_ = tiff->file_handle_.hash_value ^ cucim::codec::splitmix64(index);
+    hash_value_ = tiff->file_handle_->hash_value ^ cucim::codec::splitmix64(index);
 
     //    TIFFPrintDirectory(tif, stdout, TIFFPRINT_STRIPS);
 }
@@ -534,7 +534,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
     const int pixel_size_nbytes = tjPixelSize[pixel_format];
     const size_t tile_raster_nbytes = tw * th * pixel_size_nbytes;
 
-    int tiff_file = tiff->file_handle_.fd;
+    int tiff_file = tiff->file_handle_->fd;
     uint64_t ifd_hash_value = ifd->hash_value_;
     uint32_t dest_pixel_step_y = w * samples_per_pixel;
 
@@ -796,7 +796,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
     int64_t boundary_index_y = offset_boundary_y * stride_y;
 
 
-    int tiff_file = tiff->file_handle_.fd;
+    int tiff_file = tiff->file_handle_->fd;
     uint64_t ifd_hash_value = ifd->hash_value_;
 
     uint32_t dest_pixel_step_y = w * samples_per_pixel;

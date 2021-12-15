@@ -221,7 +221,7 @@ private:
 
     mutable Mutex mutex_;
     cucim::io::format::ImageFormatDesc* image_format_ = nullptr;
-    CuCIMFileHandle file_handle_{};
+    std::shared_ptr<CuCIMFileHandle> file_handle_;
     io::format::ImageMetadataDesc* image_metadata_ = nullptr;
     io::format::ImageDataDesc* image_data_ = nullptr;
     bool is_loaded_ = false;
