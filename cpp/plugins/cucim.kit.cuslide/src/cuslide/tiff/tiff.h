@@ -104,7 +104,9 @@ private:
     void _populate_aperio_svs_metadata(uint16_t ifd_count, void* metadata, std::shared_ptr<IFD>& first_ifd);
 
     cucim::filesystem::Path file_path_;
+    // CuCIMFileHandle_ptr file_handle_ = nullptr;
     std::shared_ptr<CuCIMFileHandle> file_handle_;
+    // CuCIMFileHandle_ptr file_handle_{};
     ::TIFF* tiff_client_ = nullptr;
     std::vector<ifd_offset_t> ifd_offsets_; /// IFD offset for an index (IFD index)
     std::vector<std::shared_ptr<IFD>> ifds_; /// IFD object for an index (IFD index)
