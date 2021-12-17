@@ -37,19 +37,24 @@ for batch in region:
 #     for item in img:
 #         print(item.shape)
 
+region2 = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
+
 for batch in region:
     img2 = np.asarray(batch)
-    print(img2.shape)
+    print("@@@", img2.shape)
 
-
-region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
-for batch in region:
+for batch in region2:
     img2 = np.asarray(batch)
-    print(img2.shape)
+    print("@@@", img2.shape)
 
 
-#     for item in img:
-#         print(item.shape)
+# region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
+# for batch in region:
+#     img2 = np.asarray(batch)
+#     print(img2.shape)
+
+    # for item in img2:
+    #     print(item.shape)
 
 
 # region = img.read_region(locations[0], (224, 224), batch_size=4, num_workers=8)

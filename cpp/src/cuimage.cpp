@@ -155,7 +155,7 @@ CuImage::CuImage(const filesystem::Path& path)
             reinterpret_cast<std::shared_ptr<CuCIMFileHandle>*>(image_format_->image_parser.open(path.c_str()));
         file_handle_ = *file_handle_shared;
         delete file_handle_shared;
-
+        // Set deleter to close the file handle
         file_handle_->deleter = image_format_->image_parser.close;
     }
     //    printf("[GB] file_handle: %s\n", file_handle_->path);
@@ -321,6 +321,7 @@ CuImage::~CuImage()
         cucim_free(image_data_);
         image_data_ = nullptr;
     }
+    fmt::print("[cuCIM] CuImage::~CuImage() : exist: {}, use_count:{}\n", (bool)file_handle_, file_handle_.use_count());
 
     image_format_ = nullptr; // memory release is handled by the framework
 }

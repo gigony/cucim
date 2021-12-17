@@ -23,9 +23,12 @@
 #include <cstdint>
 #include <memory>
 
+#include <fmt/format.h>
+
 typedef void* CUfileHandle_t;
 typedef void* CuCIMFileHandle_share;
 typedef void* CuCIMFileHandle_ptr;
+typedef bool (*CuCIMFileHandleDeleter)(CuCIMFileHandle_ptr);
 
 enum class FileHandleType: uint16_t
 {
@@ -54,8 +57,18 @@ struct EXPORT_VISIBLE CuCIMFileHandle : public std::enable_shared_from_this<CuCI
 
     ~CuCIMFileHandle()
     {
-        // CuCIMFileHandle_p file_handle_share = new std::shared_ptr<CuCIMFileHandle>(this);
-        // deleter(this);
+        if (deleter)
+        {
+            fmt::print("CuCIMFileHandle destructor\n");
+            // CuCIMFileHandle_p file_handle_share = new std::shared_ptr<CuCIMFileHandle>(this);
+            deleter(this);
+            deleter = nullptr;
+        }
+    }
+
+    CuCIMFileHandleDeleter set_deleter(CuCIMFileHandleDeleter deleter)
+    {
+        return this->deleter = deleter;
     }
 
     int fd;
@@ -67,7 +80,7 @@ struct EXPORT_VISIBLE CuCIMFileHandle : public std::enable_shared_from_this<CuCI
     uint64_t dev;
     uint64_t ino;
     int64_t mtime;
-    bool (*deleter)(CuCIMFileHandle_ptr);
+    CuCIMFileHandleDeleter deleter;
 };
 #else
 #    error "This platform is not supported!"

@@ -497,9 +497,9 @@ py::object py_read_region(const CuImage& cuimg,
         indices = cucim::DimIndices{};
     }
 
-    auto region_ptr = std::make_shared<cucim::CuImage>(cuimg.read_region(std::move(locations), std::move(size), level,
-                                                                         num_workers, batch_size, drop_last,
-                                                                         prefetch_factor, indices, device, nullptr, ""));
+    auto region_ptr = std::make_shared<cucim::CuImage>(
+        std::move(cuimg.read_region(std::move(locations), std::move(size), level, num_workers, batch_size, drop_last,
+                                    prefetch_factor, indices, device, nullptr, "")));
 
     {
         py::gil_scoped_acquire scope_guard;
