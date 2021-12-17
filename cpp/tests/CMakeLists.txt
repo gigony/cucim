@@ -21,10 +21,9 @@ enable_testing()
 ################################################################################
 add_executable(cucim_tests
         main.cpp
-        # test_read_region.cpp
-        # test_cufile.cpp
-        # test_metadata.cpp
-        test_concurrentqueue.cpp
+        test_read_region.cpp
+        test_cufile.cpp
+        test_metadata.cpp
         )
 
 set_target_properties(cucim_tests
@@ -57,7 +56,6 @@ target_link_libraries(cucim_tests
             ${CUCIM_PACKAGE_NAME}
             deps::catch2
             deps::openslide
-            deps::concurrentqueue
             deps::taskflow
             Threads::Threads # -lpthread
         )

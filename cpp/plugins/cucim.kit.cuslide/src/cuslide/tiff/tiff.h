@@ -68,7 +68,7 @@ public:
                                cucim::io::format::ImageMetadataDesc* out_metadata);
 
     cucim::filesystem::Path file_path() const;
-    std::shared_ptr<CuCIMFileHandle> file_handle();
+    std::shared_ptr<CuCIMFileHandle>& file_handle(); /// used for moving the ownership of the file handle to the caller.
     ::TIFF* client() const;
     const std::vector<ifd_offset_t>& ifd_offsets() const;
     std::shared_ptr<IFD> ifd(size_t index) const;

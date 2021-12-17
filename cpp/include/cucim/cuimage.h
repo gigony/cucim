@@ -251,8 +251,8 @@ public:
     bool operator==(const CuImageIterator<DataType>& other);
     bool operator!=(const CuImageIterator<DataType>& other);
 
-    int64_t index() const; ///< batch index
-    uint64_t size() const; ///< number of batches
+    int64_t index(); /// batch index
+    uint64_t size() const; /// number of batches
 
 private:
     void increase_index_();

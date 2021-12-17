@@ -50,17 +50,16 @@ IFD::IFD(TIFF* tiff, uint16_t index, ifd_offset_t offset) : tiff_(tiff), ifd_ind
 {
     PROF_SCOPED_RANGE(PROF_EVENT(ifd_ifd));
     auto tif = tiff->client();
-    int ret;
 
     char* software_char_ptr = nullptr;
     char* model_char_ptr = nullptr;
     // TODO: error handling
 
-    ret = TIFFGetField(tif, TIFFTAG_SOFTWARE, &software_char_ptr);
+    TIFFGetField(tif, TIFFTAG_SOFTWARE, &software_char_ptr);
     software_ = std::string(software_char_ptr ? software_char_ptr : "");
-    ret = TIFFGetField(tif, TIFFTAG_MODEL, &model_char_ptr);
+    TIFFGetField(tif, TIFFTAG_MODEL, &model_char_ptr);
     model_ = std::string(model_char_ptr ? model_char_ptr : "");
-    ret = TIFFGetField(tif, TIFFTAG_IMAGEDESCRIPTION, &model_char_ptr);
+    TIFFGetField(tif, TIFFTAG_IMAGEDESCRIPTION, &model_char_ptr);
     image_description_ = std::string(model_char_ptr ? model_char_ptr : "");
 
     TIFFDirectory& tif_dir = tif->tif_dir;
@@ -84,26 +83,8 @@ IFD::IFD(TIFF* tiff, uint16_t index, ifd_offset_t offset) : tiff_(tiff), ifd_ind
     photometric_ = tif_dir.td_photometric;
     compression_ = tif_dir.td_compression;
     TIFFGetField(tif, TIFFTAG_PREDICTOR, &predictor_);
-
-    //    ret = TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width_);
-    //    ret = TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height_);
-    //    ret = TIFFGetField(tif, TIFFTAG_TILEWIDTH, &tile_width_);
-    //    ret = TIFFGetField(tif, TIFFTAG_TILELENGTH, &tile_height_);
-    //    ret = TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bits_per_sample_);
-    //    ret = TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samples_per_pixel_);
-    //    ret = TIFFGetField(tif, TIFFTAG_SUBFILETYPE, &subfile_type_); // for checking if FILETYPE_REDUCEDIMAGE
-    //    ret = TIFFGetField(tif, TIFFTAG_PLANARCONFIG, &planar_config_);
-    //    ret = TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photometric_);
-    //    ret = TIFFGetField(tif, TIFFTAG_COMPRESSION, &compression_);
-    //    printf("[GB] offset_entry:%lu %p\n", tif->tif_dir.td_stripoffset_entry.tdir_count,
-    //    tif->tif_dir.td_stripoffset_p); printf("[GB] width: %d %d\n", tif->tif_dir.td_imagewidth, width_);
-    //    printf("[GB] bytecount entry2:%lu %p\n", tif->tif_dir.td_stripbytecount_entry.tdir_count,
-    //    tif->tif_dir.td_stripbytecount_p);
-    (void)ret;
-
     subifd_count_ = tif_dir.td_nsubifd;
     uint64_t* subifd_offsets = tif_dir.td_subifd;
-    //    ret = TIFFGetField(tif, TIFFTAG_SUBIFD, &subifd_count, &subifd_offsets);
     if (subifd_count_)
     {
         subifd_offsets_.resize(subifd_count_);
@@ -115,7 +96,7 @@ IFD::IFD(TIFF* tiff, uint16_t index, ifd_offset_t offset) : tiff_(tiff), ifd_ind
         uint8_t* jpegtable_data = nullptr;
         uint32_t jpegtable_count = 0;
 
-        ret = TIFFGetField(tif, TIFFTAG_JPEGTABLES, &jpegtable_count, &jpegtable_data);
+        TIFFGetField(tif, TIFFTAG_JPEGTABLES, &jpegtable_count, &jpegtable_data);
         jpegtable_.reserve(jpegtable_count);
         jpegtable_.insert(jpegtable_.end(), jpegtable_data, jpegtable_data + jpegtable_count);
 
@@ -200,7 +181,7 @@ bool IFD::read(const TIFF* tiff,
 
         if (num_workers == 0 && location_len > 1)
         {
-            throw std::runtime_error("Cannot read multiple images with zero workers!");
+            throw std::runtime_error("Cannot read multiple locations with zero workers!");
         }
 
         // Shuffle data
@@ -255,7 +236,7 @@ bool IFD::read(const TIFF* tiff,
         auto loader = std::make_unique<cucim::loader::ThreadBatchDataLoader>(
             load_func, location_len, one_raster_size, batch_size, prefetch_factor, num_workers);
 
-        if (location_len > 1)
+        if (location_len > 1 || batch_size > 1)
         {
             loader->request(load_size);
             out_image_data->loader = loader.release(); // set loader to out_image_data
@@ -676,8 +657,6 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                         image_cache.unlock(index_hash);
                     }
 
-                    // fmt::print(stderr, "dest_start_ptr: {}, dest_pixel_index: {}, count: {}\n",
-                    //            (uint64_t)dest_start_ptr, dest_pixel_index, ++ccc);
                     for (uint32_t ty = tile_pixel_offset_sy; ty <= tile_pixel_offset_ey;
                          ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
                     {

@@ -212,9 +212,6 @@ static bool CUCIM_ABI parser_parse(CuCIMFileHandle_ptr handle, cucim::io::format
 
 static bool CUCIM_ABI parser_close(CuCIMFileHandle_share handle_ptr)
 {
-    // std::shared_ptr<CuCIMFileHandle>* handle_shared = reinterpret_cast<std::shared_ptr<CuCIMFileHandle>*>(handle_p);
-    // std::shared_ptr<CuCIMFileHandle> handle = *handle_shared;
-    // delete handle_shared;
     CuCIMFileHandle* handle = reinterpret_cast<CuCIMFileHandle*>(handle_ptr);
 
     if (handle->client_data)

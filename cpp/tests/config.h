@@ -20,8 +20,6 @@
 #include <string>
 #include <cstdlib>
 
-#include <fmt/format.h>
-
 #define XSTR(x) STR(x)
 #define STR(x) #x
 
@@ -68,9 +66,6 @@ struct AppConfig
         {
             plugin_path = env_p;
         }
-        const char* env_pp = std::getenv("LD_LIBRARY_PATH");
-        fmt::print("LD_LIBRARY_PATH: {}\n", env_pp);
-
         return plugin_path;
     }
 };

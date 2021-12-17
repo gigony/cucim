@@ -283,7 +283,6 @@ TIFF::TIFF(const cucim::filesystem::Path& file_path, int mode) : file_path_(file
     }
     file_handle_shared_ = std::make_shared<CuCIMFileHandle>(fd, nullptr, FileHandleType::kPosix, file_path_cstr, this);
     file_handle_ = file_handle_shared_.get();
-    // file_handle_ = CuCIMFileHandle(fd, nullptr, FileHandleType::kPosix, file_path_cstr, this);
 
     // TODO: warning if the file is big endian
     is_big_endian_ = ::TIFFIsBigEndian(tiff_client_);
@@ -1032,11 +1031,9 @@ cucim::filesystem::Path TIFF::file_path() const
     return file_path_;
 }
 
-std::shared_ptr<CuCIMFileHandle> TIFF::file_handle()
+std::shared_ptr<CuCIMFileHandle>& TIFF::file_handle()
 {
-    std::shared_ptr<CuCIMFileHandle> handle = file_handle_shared_;
-    file_handle_shared_ = nullptr;
-    return handle;
+    return file_handle_shared_;
 }
 ::TIFF* TIFF::client() const
 {

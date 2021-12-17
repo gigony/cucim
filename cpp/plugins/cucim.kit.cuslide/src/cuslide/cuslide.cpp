@@ -86,6 +86,7 @@ static CuCIMFileHandle_share CUCIM_ABI parser_open(const char* file_path)
 {
     auto tif = new cuslide::tiff::TIFF(file_path, O_RDONLY);
     tif->construct_ifds();
+    // Move the ownership of the file handle object to the caller (CuImage).
     CuCIMFileHandle_share handle = new std::shared_ptr<CuCIMFileHandle>(std::move(tif->file_handle()));
     return handle;
 }
@@ -241,9 +242,6 @@ static bool CUCIM_ABI parser_parse(CuCIMFileHandle_ptr handle_ptr, cucim::io::fo
 
 static bool CUCIM_ABI parser_close(CuCIMFileHandle_ptr handle_ptr)
 {
-    // std::shared_ptr<CuCIMFileHandle>* handle_shared = reinterpret_cast<std::shared_ptr<CuCIMFileHandle>*>(handle_p);
-    // std::shared_ptr<CuCIMFileHandle> handle = *handle_shared;
-    // delete handle_shared;
     CuCIMFileHandle* handle = reinterpret_cast<CuCIMFileHandle*>(handle_ptr);
 
     auto tif = static_cast<cuslide::tiff::TIFF*>(handle->client_data);

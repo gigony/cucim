@@ -648,6 +648,12 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
             "[Error] The number of locations should be the multiplication of the number of dimensions in the size!");
     }
 
+    // Make sure the batch size is not zero.
+    if (batch_size == 0)
+    {
+        batch_size = 1;
+    }
+
     uint32_t size_ndim = size.size();
     uint64_t location_len = location.size() / size_ndim;
     std::string device_name = std::string(device);
@@ -686,6 +692,17 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
         }
         else // Read region by cropping image
         {
+            const char* dims_str = image_metadata_->dims;
+            if (strncmp("YXC", dims_str, 4) != 0)
+            {
+                throw std::runtime_error(fmt::format("[Error] The image is not in YXC format! ({})", dims_str));
+            }
+            if (image_data_->container.data == nullptr)
+            {
+                throw std::runtime_error(
+                    "[Error] The image data is nullptr! It is possible that the object is iterator and the image data "
+                    "is not loaded yet! Please advance the iterator first!");
+            }
             crop_image(request, *image_data);
         }
     }
@@ -1277,8 +1294,13 @@ bool CuImageIterator<DataType>::operator!=(const CuImageIterator<DataType>& othe
 };
 
 template <typename DataType>
-int64_t CuImageIterator<DataType>::index() const
+int64_t CuImageIterator<DataType>::index()
 {
+    auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(loader_);
+    if (loader && (loader->size() > 1))
+    {
+        batch_index_ = loader->processed_batch_count();
+    }
     return batch_index_;
 }
 
@@ -1294,7 +1316,6 @@ void CuImageIterator<DataType>::increase_index_()
     auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(loader_);
     if (loader)
     {
-
         auto next_data = loader->next_data();
         if (next_data)
         {
