@@ -52,8 +52,6 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
     for (size_t i = 0; i < buffer_item_len_; ++i)
     {
         raster_data_.emplace_back(std::make_unique<uint8_t[]>(buffer_size_));
-        // fmt::print(stderr, "raster_data_[{}] = {} buffer_size: {}\n", i, (uint64_t)raster_data_[i].get(),
-        // buffer_size_);
     }
 }
 
@@ -70,7 +68,7 @@ uint8_t* ThreadBatchDataLoader::raster_pointer(const uint64_t location_index) co
     assert(buffer_item_index < buffer_item_len_);
 
     uint8_t* batch_raster_ptr = raster_data_[buffer_item_index].get();
-    fmt::print(stderr, "write to index: {}, {}\n", buffer_item_index, raster_data_index);
+
     return &batch_raster_ptr[raster_data_index * one_rester_size_];
 }
 
@@ -149,7 +147,7 @@ uint8_t* ThreadBatchDataLoader::next_data()
     wait_batch();
 
     uint8_t* batch_raster_ptr = raster_data_[buffer_item_head_index_].release();
-    fmt::print(stderr, "replace index: {}\n", buffer_item_head_index_);
+
     raster_data_[buffer_item_head_index_] = std::move(std::make_unique<uint8_t[]>(buffer_size_));
     buffer_item_head_index_ = (buffer_item_head_index_ + 1) % buffer_item_len_;
 
@@ -199,13 +197,10 @@ bool ThreadBatchDataLoader::enqueue(std::function<void()> task)
     if (num_workers_ > 0)
     {
         auto future = thread_pool_.enqueue(task);
-        // thread_pool_.enqueue(std::move(task));
         tasks_.emplace_back(std::move(future));
         return true;
-        // return thread_pool_.enqueue(task);
     }
     return false;
-    // return std::nullopt;
 }
 
 } // namespace cucim::loader

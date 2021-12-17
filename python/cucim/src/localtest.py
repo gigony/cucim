@@ -28,41 +28,41 @@ import numpy as np
 from cucim import CuImage
 
 
-class Timer(ContextDecorator):
-    def __init__(self, message):
-        self.message = message
-        self.end = None
+# class Timer(ContextDecorator):
+#     def __init__(self, message):
+#         self.message = message
+#         self.end = None
 
-    def elapsed_time(self):
-        self.end = perf_counter()
-        return self.end - self.start
+#     def elapsed_time(self):
+#         self.end = perf_counter()
+#         return self.end - self.start
 
-    def __enter__(self):
-        self.start = perf_counter()
-        return self
+#     def __enter__(self):
+#         self.start = perf_counter()
+#         return self
 
-    def __exit__(self, exc_type, exc, exc_tb):
-        if not self.end:
-            self.elapsed_time()
-        print("{} : {}".format(self.message, self.end - self.start))
-
-
-img = CuImage("notebooks/input/TUPAC-TR-467.svs")
-
-# cache = CuImage.cache("per_process", memory_capacity=1024)
-
-with Timer("  Thread elapsed time (cuCIM)") as timer:
-    a = img.read_region(num_workers=8)
-    print(a.shape)
+#     def __exit__(self, exc_type, exc, exc_tb):
+#         if not self.end:
+#             self.elapsed_time()
+#         print("{} : {}".format(self.message, self.end - self.start))
 
 
-with Timer("  Thread elapsed time (tifffile)") as timer:
-    with TiffFile("notebooks/input/TUPAC-TR-467.svs") as tif:
-        a = tif.asarray()
-        print(a.shape)
-del img
+# img = CuImage("notebooks/input/TUPAC-TR-467.svs")
 
-sys.exit(0)
+# # cache = CuImage.cache("per_process", memory_capacity=1024)
+
+# with Timer("  Thread elapsed time (cuCIM)") as timer:
+#     a = img.read_region(num_workers=8)
+#     print(a.shape)
+
+
+# with Timer("  Thread elapsed time (tifffile)") as timer:
+#     with TiffFile("notebooks/input/TUPAC-TR-467.svs") as tif:
+#         a = tif.asarray()
+#         print(a.shape)
+# del img
+
+# sys.exit(0)
 
 
 cache = CuImage.cache("per_process", memory_capacity=1024)
@@ -76,12 +76,14 @@ locations = np.array(locations)
 # locations = [[0, 0], [100, 0], [200, 0]]
 # locations = np.array(locations)
 
-region = img.read_region(locations[0], (224, 224), batch_size=1, num_workers=0)
+region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
+print(dir(region))
 img2 = np.asarray(region)
+print("#", img2)
 print(img2.shape)
-# for batch in region:
-#     img2 = np.asarray(batch)
-#     print(img2.shape)
+for batch in region:
+    img2 = np.asarray(batch)
+    print(img2.shape)
 # #     for item in img:
 # #         print(item.shape)
 

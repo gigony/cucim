@@ -19,7 +19,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <iostream>
+#include <random>
 #include <thread>
 
 #include <fmt/format.h>
@@ -188,14 +190,42 @@ bool IFD::read(const TIFF* tiff,
         {
             ndim = 4;
         }
-        const int64_t* location = request->location;
-        const uint64_t& location_len = request->location_len;
-        uint32_t prefetch_factor = request->prefetch_factor;
+        int64_t* location = request->location;
+        uint64_t location_len = request->location_len;
         const uint32_t num_workers = request->num_workers;
+        const bool drop_last = request->drop_last;
+        uint32_t prefetch_factor = request->prefetch_factor;
+        const bool shuffle = request->shuffle;
+        const uint64_t seed = request->seed;
 
         if (num_workers == 0 && location_len > 1)
         {
             throw std::runtime_error("Cannot read multiple images with zero workers!");
+        }
+
+        // Shuffle data
+        if (shuffle)
+        {
+            auto rng = std::default_random_engine{ seed };
+            struct position
+            {
+                int64_t x;
+                int64_t y;
+            };
+            std::shuffle(reinterpret_cast<position*>(&location[0]),
+                         reinterpret_cast<position*>(&location[location_len * 2]), rng);
+            for (uint64_t i = 0; i < location_len; i++)
+            {
+                fmt::print("[{}, {}], ", location[i * 2], location[i * 2 + 1]);
+            }
+            fmt::print("\n");
+        }
+
+        // Adjust location length based on 'drop_last'
+        const uint32_t remaining_len = location_len % batch_size;
+        if (drop_last)
+        {
+            location_len -= remaining_len;
         }
 
         // Do not use prefetch if the image is too small
@@ -304,11 +334,6 @@ bool IFD::read(const TIFF* tiff,
         }
     }
 
-    {
-        PROF_SCOPED_RANGE("read:8");
-    }
-
-
     int64_t* shape = static_cast<int64_t*>(cucim_malloc(sizeof(int64_t) * ndim));
     if (ndim == 3)
     {
@@ -348,9 +373,6 @@ bool IFD::read(const TIFF* tiff,
     else
     {
         out_image_data->shm_name = nullptr;
-    }
-    {
-        PROF_SCOPED_RANGE("read:9");
     }
 
     return true;

@@ -24,12 +24,6 @@
 namespace cucim::concurrent
 {
 
-// struct ThreadPool::TaskQueue : public tf::Taskflow
-// {
-//     // inherits  Constructor
-//     using tf::Taskflow::Taskflow;
-// };
-
 struct ThreadPool::Executor : public tf::Executor
 {
     // inherits  Constructor
@@ -42,8 +36,6 @@ ThreadPool::ThreadPool(int32_t num_workers)
     num_workers_ = num_workers;
     if (num_workers > 0)
     {
-        // num_workers = std::thread::hardware_concurrency();
-        // tasks_ = std::make_unique<TaskQueue>();
         executor_ = std::make_unique<Executor>(num_workers);
     }
 }
@@ -52,7 +44,6 @@ ThreadPool::~ThreadPool()
 {
     if (executor_)
     {
-        fmt::print(stderr, "ThreadPool::~ThreadPool()\n");
         executor_->wait_for_all();
     }
 }

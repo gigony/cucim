@@ -59,8 +59,6 @@ struct EXPORT_VISIBLE CuCIMFileHandle : public std::enable_shared_from_this<CuCI
     {
         if (deleter)
         {
-            fmt::print(stderr, "CuCIMFileHandle destructor\n");
-            // CuCIMFileHandle_p file_handle_share = new std::shared_ptr<CuCIMFileHandle>(this);
             deleter(this);
             deleter = nullptr;
         }

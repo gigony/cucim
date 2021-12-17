@@ -144,7 +144,7 @@ std::unique_ptr<plugin::ImageFormat> CuImage::image_format_plugins_ = std::make_
 CuImage::CuImage(const filesystem::Path& path)
 {
     PROF_SCOPED_RANGE(PROF_EVENT_P(cuimage_cuimage, 1));
-    //    printf("[cuCIM] CuImage::CuImage(filesystem::Path path)\n");
+
     ensure_init();
     image_format_ = image_format_plugins_->detect_image_format(path);
 
@@ -159,8 +159,6 @@ CuImage::CuImage(const filesystem::Path& path)
         // Set deleter to close the file handle
         file_handle_->set_deleter(image_format_->image_parser.close);
     }
-    //    printf("[GB] file_handle: %s\n", file_handle_->path);
-    //    fmt::print("[GB] CuImage path char: '{}'\n", file_handle_->path[0]);
 
     io::format::ImageMetadata& image_metadata = *(new io::format::ImageMetadata{});
     image_metadata_ = &image_metadata.desc();
@@ -185,18 +183,10 @@ CuImage::CuImage(const filesystem::Path& path, const std::string& plugin_name)
     (void)plugin_name;
 }
 
-// CuImage::CuImage(const CuImage& cuimg) : std::enable_shared_from_this<CuImage>()
-//{
-//    printf("[cuCIM] CuImage::CuImage(const CuImage& cuimg)\n");
-//    (void)cuimg;
-//
-//}
-
 CuImage::CuImage(CuImage&& cuimg) : std::enable_shared_from_this<CuImage>()
 {
     PROF_SCOPED_RANGE(PROF_EVENT_P(cuimage_cuimage, 3));
-    // printf("[cuCIM] CuImage::CuImage(CuImage&& cuimg) %s\n", cuimg.file_handle_->path);
-    (void)cuimg;
+
     std::swap(file_handle_, cuimg.file_handle_);
     std::swap(image_format_, cuimg.image_format_);
     std::swap(image_metadata_, cuimg.image_metadata_);
@@ -212,9 +202,6 @@ CuImage::CuImage(const CuImage* cuimg,
     : std::enable_shared_from_this<CuImage>()
 {
     PROF_SCOPED_RANGE(PROF_EVENT_P(cuimage_cuimage, 4));
-    //    printf(
-    //        "[cuCIM] CuImage::CuImage(CuImage* cuimg, io::format::ImageMetadataDesc* image_metadata,
-    //        cucim::io::format::ImageDataDesc* image_data)\n");
 
     file_handle_ = cuimg->file_handle_;
     image_format_ = cuimg->image_format_;
@@ -246,7 +233,7 @@ CuImage::CuImage() : std::enable_shared_from_this<CuImage>()
 CuImage::~CuImage()
 {
     PROF_SCOPED_RANGE(PROF_EVENT(cuimage__cuimage));
-    //    printf("[cuCIM] CuImage::~CuImage()\n");
+
     if (image_metadata_)
     {
         // Memory for json_data needs to be manually released if image_metadata_->json_data is not ""
@@ -310,21 +297,17 @@ CuImage::~CuImage()
         }
         if (image_data_->loader)
         {
-            fmt::print(stderr, "Loader will be removed!");
             auto loader = reinterpret_cast<cucim::loader::ThreadBatchDataLoader*>(image_data_->loader);
             delete loader;
-            image_data_->loader = nullptr;
-            fmt::print(stderr, "Loader is removed!");
-        }
 
-        close(); // close file handle (NOTE:: close the file handle after loader is deleted)
+            image_data_->loader = nullptr;
+        }
 
         cucim_free(image_data_);
         image_data_ = nullptr;
     }
-    fmt::print(stderr, "[cuCIM] CuImage::~CuImage() : exist: {}, use_count:{}\n", (bool)file_handle_,
-               file_handle_.use_count());
 
+    close(); // close file handle (NOTE:: close the file handle after loader is deleted)
     image_format_ = nullptr; // memory release is handled by the framework
 }
 
@@ -627,6 +610,8 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
                              uint32_t batch_size,
                              bool drop_last,
                              uint32_t prefetch_factor,
+                             bool shuffle,
+                             uint64_t seed,
                              const DimIndices& region_dim_indices,
                              const io::Device& device,
                              DLTensor* buf,
@@ -676,30 +661,26 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     request.batch_size = batch_size;
     request.drop_last = drop_last;
     request.prefetch_factor = prefetch_factor;
+    request.shuffle = shuffle;
+    request.seed = seed;
     request.device = device_name.data();
 
-    //    cucim::io::format::ImageDataDesc image_data{};
-
-    // cucim::io::format::ImageDataDesc* image_data =
-    //     static_cast<cucim::io::format::ImageDataDesc*>(cucim_malloc(sizeof(cucim::io::format::ImageDataDesc)));
-    auto image_data = std::unique_ptr<cucim::io::format::ImageDataDesc, decltype(cucim_free)*>(
-        reinterpret_cast<cucim::io::format::ImageDataDesc*>(cucim_malloc(sizeof(cucim::io::format::ImageDataDesc))),
-        cucim_free);
-    memset(image_data.get(), 0, sizeof(cucim::io::format::ImageDataDesc));
+    auto image_data = std::unique_ptr<io::format::ImageDataDesc, decltype(cucim_free)*>(
+        reinterpret_cast<io::format::ImageDataDesc*>(cucim_malloc(sizeof(io::format::ImageDataDesc))), cucim_free);
+    memset(image_data.get(), 0, sizeof(io::format::ImageDataDesc));
 
     try
     {
         // Read region from internal file if image_data_ is nullptr
         if (image_data_ == nullptr)
         {
-            if (file_handle_->fd < 0) // file_handle_ is not opened
+            if (!file_handle_) // file_handle_ is not opened
             {
                 throw std::runtime_error("[Error] The image file is closed!");
             }
             if (!image_format_->image_reader.read(
                     file_handle_.get(), image_metadata_, &request, image_data.get(), nullptr /*out_metadata*/))
             {
-                // cucim_free(image_data);
                 throw std::runtime_error("[Error] Failed to read image!");
             }
         }
@@ -710,7 +691,6 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     }
     catch (std::invalid_argument& e)
     {
-        // cucim_free(image_data);
         throw e;
     }
 
@@ -884,20 +864,19 @@ CuImage CuImage::associated_image(const std::string& name, const io::Device& dev
         std::string device_name = std::string(device);
         request.device = device_name.data();
 
-        io::format::ImageDataDesc* out_image_data =
-            static_cast<cucim::io::format::ImageDataDesc*>(cucim_malloc(sizeof(cucim::io::format::ImageDataDesc)));
+        auto out_image_data = std::unique_ptr<io::format::ImageDataDesc, decltype(cucim_free)*>(
+            reinterpret_cast<io::format::ImageDataDesc*>(cucim_malloc(sizeof(io::format::ImageDataDesc))), cucim_free);
+        memset(out_image_data.get(), 0, sizeof(io::format::ImageDataDesc));
 
         io::format::ImageMetadata& out_metadata = *(new io::format::ImageMetadata{});
 
         if (!image_format_->image_reader.read(
-                file_handle_.get(), image_metadata_, &request, out_image_data, &out_metadata.desc()))
+                file_handle_.get(), image_metadata_, &request, out_image_data.get(), &out_metadata.desc()))
         {
-            cucim_free(out_image_data);
-            delete &out_metadata;
             throw std::runtime_error("[Error] Failed to read image!");
         }
 
-        return CuImage(this, &out_metadata.desc(), out_image_data);
+        return CuImage(this, &out_metadata.desc(), out_image_data.release());
     }
     return CuImage{};
 }
@@ -956,13 +935,7 @@ void CuImage::save(std::string file_path) const
 
 void CuImage::close()
 {
-    fmt::print(stderr, "CuImage::close(): {}\n", file_handle_.use_count());
-    if (file_handle_ && file_handle_->client_data)
-    {
-        fmt::print(stderr, "[Info] Closing image file {}\n", file_handle_->fd);
-        // CuCIMFileHandle_share file_handle_share = new std::shared_ptr<CuCIMFileHandle>(file_handle_);
-        // image_format_->image_parser.close(file_handle_share);
-    }
+    file_handle_ = nullptr;
 }
 
 void CuImage::ensure_init()
@@ -1198,14 +1171,14 @@ CuImage::const_iterator CuImage::end() const
 
 template <typename DataType>
 CuImageIterator<DataType>::CuImageIterator(std::shared_ptr<DataType> cuimg, bool ending)
-    : ptr_(cuimg), loader_(nullptr), batch_index_(0), total_batch_count_(0)
+    : cuimg_(cuimg), loader_(nullptr), batch_index_(0), total_batch_count_(0)
 {
-    if (!ptr_)
+    if (!cuimg_)
     {
         throw std::runtime_error("CuImageIterator: cuimg is nullptr!");
     }
 
-    auto& image_data = ptr_->image_data_;
+    auto& image_data = cuimg_->image_data_;
     cucim::loader::ThreadBatchDataLoader* loader = nullptr;
     if (image_data)
     {
@@ -1265,13 +1238,13 @@ CuImageIterator<DataType>::CuImageIterator(std::shared_ptr<DataType> cuimg, bool
 template <typename DataType>
 typename CuImageIterator<DataType>::reference CuImageIterator<DataType>::operator*() const
 {
-    return ptr_;
+    return cuimg_;
 }
 
 template <typename DataType>
 typename CuImageIterator<DataType>::pointer CuImageIterator<DataType>::operator->()
 {
-    return ptr_.get();
+    return cuimg_.get();
 }
 
 template <typename DataType>
@@ -1294,13 +1267,13 @@ CuImageIterator<DataType> CuImageIterator<DataType>::operator++(int)
 template <typename DataType>
 bool CuImageIterator<DataType>::operator==(const CuImageIterator<DataType>& other)
 {
-    return ptr_.get() == other.ptr_.get() && batch_index_ == other.batch_index_;
+    return cuimg_.get() == other.cuimg_.get() && batch_index_ == other.batch_index_;
 };
 
 template <typename DataType>
 bool CuImageIterator<DataType>::operator!=(const CuImageIterator<DataType>& other)
 {
-    return ptr_.get() != other.ptr_.get() || batch_index_ != other.batch_index_;
+    return cuimg_.get() != other.cuimg_.get() || batch_index_ != other.batch_index_;
 };
 
 template <typename DataType>
@@ -1325,12 +1298,12 @@ void CuImageIterator<DataType>::increase_index_()
         auto next_data = loader->next_data();
         if (next_data)
         {
-            ptr_->image_data_->container.data = next_data;
+            cuimg_->image_data_->container.data = next_data;
             if (loader->batch_size() > 1)
             {
-                // set value for dimension 'N'
-                ptr_->image_data_->container.shape[0] = loader->data_batch_size();
-                ptr_->image_metadata_->shape[0] = loader->data_batch_size();
+                // Set value for dimension 'N'
+                cuimg_->image_data_->container.shape[0] = loader->data_batch_size();
+                cuimg_->image_metadata_->shape[0] = loader->data_batch_size();
             }
         }
         if (loader->size() > 1)

@@ -173,6 +173,8 @@ public:
                         uint32_t batch_size = 1,
                         bool drop_last = false,
                         uint32_t prefetch_factor = 2,
+                        bool shuffle = false,
+                        uint64_t seed = 0,
                         const DimIndices& region_dim_indices = {},
                         const io::Device& device = "cpu",
                         DLTensor* buf = nullptr,
@@ -255,7 +257,7 @@ public:
 private:
     void increase_index_();
 
-    std::shared_ptr<DataType> ptr_;
+    std::shared_ptr<DataType> cuimg_;
     void* loader_ = nullptr;
     int64_t batch_index_ = 0;
     uint64_t total_batch_count_ = 0;

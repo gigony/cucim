@@ -319,11 +319,6 @@ void TIFF::close()
         TIFFClose(tiff_client_);
         tiff_client_ = nullptr;
     }
-    // if (file_handle_)
-    // {
-    //     fmt::print("TIFF::close(): use count: {}\n", file_handle_.use_count());
-    // }
-    // file_handle_ = nullptr;
     if (metadata_)
     {
         delete reinterpret_cast<json*>(metadata_);

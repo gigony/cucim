@@ -155,6 +155,8 @@ PYBIND11_MODULE(_cucim, m)
              py::arg("batch_size") = 1, //
              py::arg("drop_last") = py::bool_(false), //
              py::arg("prefetch_factor") = 2, //
+             py::arg("shuffle") = py::bool_(false), //
+             py::arg("seed") = py::int_(0), //
              py::arg("device") = io::Device(), //
              py::arg("buf") = py::none(), //
              py::arg("shm_name") = "") //
@@ -199,8 +201,14 @@ PYBIND11_MODULE(_cucim, m)
              py::arg("ending") = false, py::call_guard<py::gil_scoped_release>())
         .def(
             "__len__",
-            [](CuImageIterator<CuImage>& it) { //
+            [](const CuImageIterator<CuImage>& it) { //
                 return it.size(); //
+            }, //
+            py::call_guard<py::gil_scoped_release>())
+        .def(
+            "__iter__", //
+            [](CuImageIterator<CuImage>& it) { //
+                return CuImageIterator<CuImage>(it); //
             }, //
             py::call_guard<py::gil_scoped_release>())
         .def("__next__", &py_cuimage_iterator_next, py::call_guard<py::gil_scoped_release>())
@@ -414,15 +422,13 @@ py::object py_read_region(const CuImage& cuimg,
                           uint32_t batch_size,
                           bool drop_last,
                           uint32_t prefetch_factor,
+                          bool shuffle,
+                          uint64_t seed,
                           const io::Device& device,
                           const py::object& buf,
                           const std::string& shm_name,
                           const py::kwargs& kwargs)
 {
-    (void)num_workers;
-    (void)batch_size;
-    (void)drop_last;
-    (void)prefetch_factor;
     cucim::DimIndices indices;
     std::vector<int64_t> locations;
     {
@@ -485,9 +491,6 @@ py::object py_read_region(const CuImage& cuimg,
                 }
 
                 indices_args.emplace_back(std::make_pair(key_char, value));
-
-                //            fmt::print("k:{} v:{}\n", std::string(py::str(item.first)),
-                //            std::string(py::str(item.second)));
             }
         }
         indices = cucim::DimIndices(indices_args);
@@ -497,10 +500,21 @@ py::object py_read_region(const CuImage& cuimg,
         indices = cucim::DimIndices{};
     }
 
+
     auto region_ptr = std::make_shared<cucim::CuImage>(
         std::move(cuimg.read_region(std::move(locations), std::move(size), level, num_workers, batch_size, drop_last,
-                                    prefetch_factor, indices, device, nullptr, "")));
+                                    prefetch_factor, shuffle, seed, indices, device, nullptr, "")));
+    if (batch_size > 1)
+    {
+        auto iter_ptr = region_ptr->begin();
 
+        py::gil_scoped_acquire scope_guard;
+
+        py::object iter = py::cast(iter_ptr);
+
+        return iter;
+    }
+    else
     {
         py::gil_scoped_acquire scope_guard;
 

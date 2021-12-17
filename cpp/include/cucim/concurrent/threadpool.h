@@ -42,9 +42,7 @@ public:
     void wait();
 
 private:
-    // struct TaskQueue;
     struct Executor;
-    // std::unique_ptr<TaskQueue> tasks_;
     std::unique_ptr<Executor> executor_;
     size_t num_workers_;
 };

@@ -64,7 +64,6 @@ public:
     uint8_t* data() const;
     uint32_t data_batch_size() const;
 
-    // std::optional<std::future<void>> enqueue(const std::function<void()>&& task);
     bool enqueue(std::function<void()> task);
 
 private:

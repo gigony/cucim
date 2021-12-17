@@ -213,6 +213,8 @@ struct ImageReaderRegionRequestDesc
     uint32_t batch_size = 1;
     bool drop_last = false;
     uint32_t prefetch_factor = 2;
+    bool shuffle = false;
+    uint64_t seed = 0;
     DimIndicesDesc region_dim_indices{};
     char* associated_image_name = nullptr;
     char* device = nullptr;
