@@ -59,7 +59,7 @@ struct EXPORT_VISIBLE CuCIMFileHandle : public std::enable_shared_from_this<CuCI
     {
         if (deleter)
         {
-            fmt::print("CuCIMFileHandle destructor\n");
+            fmt::print(stderr, "CuCIMFileHandle destructor\n");
             // CuCIMFileHandle_p file_handle_share = new std::shared_ptr<CuCIMFileHandle>(this);
             deleter(this);
             deleter = nullptr;
@@ -71,16 +71,16 @@ struct EXPORT_VISIBLE CuCIMFileHandle : public std::enable_shared_from_this<CuCI
         return this->deleter = deleter;
     }
 
-    int fd;
-    CUfileHandle_t cufile;
-    FileHandleType type; /// 1: POSIX, 2: POSIX+ODIRECT, 4: MemoryMapped, 8: GPUDirect
-    char* path;
-    void* client_data;
-    uint64_t hash_value;
-    uint64_t dev;
-    uint64_t ino;
-    int64_t mtime;
-    CuCIMFileHandleDeleter deleter;
+    int fd = -1;
+    CUfileHandle_t cufile = nullptr;
+    FileHandleType type = FileHandleType::kUnknown; /// 1: POSIX, 2: POSIX+ODIRECT, 4: MemoryMapped, 8: GPUDirect
+    char* path = nullptr;
+    void* client_data = nullptr;
+    uint64_t hash_value = 0;
+    uint64_t dev = 0;
+    uint64_t ino = 0;
+    int64_t mtime = 0;
+    CuCIMFileHandleDeleter deleter = nullptr;
 };
 #else
 #    error "This platform is not supported!"

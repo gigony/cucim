@@ -199,7 +199,7 @@ struct ImageParserDesc
      * @param handle
      * @return
      */
-    bool(CUCIM_ABI* close)(CuCIMFileHandle_share handle);
+    bool(CUCIM_ABI* close)(CuCIMFileHandle_ptr handle);
 };
 
 struct ImageReaderRegionRequestDesc
@@ -212,7 +212,7 @@ struct ImageReaderRegionRequestDesc
     uint32_t num_workers = 0;
     uint32_t batch_size = 1;
     bool drop_last = false;
-    int32_t prefetch_factor = 2;
+    uint32_t prefetch_factor = 2;
     DimIndicesDesc region_dim_indices{};
     char* associated_image_name = nullptr;
     char* device = nullptr;

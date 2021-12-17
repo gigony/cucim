@@ -30,7 +30,7 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
                                              uint64_t location_len,
                                              size_t one_raster_size,
                                              uint32_t batch_size,
-                                             int32_t prefetch_factor,
+                                             uint32_t prefetch_factor,
                                              uint32_t num_workers)
     : load_func_(load_func),
       location_len_(location_len),
@@ -38,7 +38,7 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
       batch_size_(batch_size),
       prefetch_factor_(prefetch_factor),
       num_workers_(num_workers),
-      buffer_item_len_(std::min(static_cast<uint32_t>(location_len), static_cast<uint32_t>(1 + prefetch_factor))),
+      buffer_item_len_(std::min(static_cast<uint64_t>(location_len), static_cast<uint64_t>(1 + prefetch_factor))),
       buffer_size_(one_raster_size * batch_size),
       thread_pool_(num_workers),
       queued_item_count_(0),
@@ -76,6 +76,11 @@ uint8_t* ThreadBatchDataLoader::raster_pointer(const uint64_t location_index) co
 
 uint32_t ThreadBatchDataLoader::request(uint32_t load_size)
 {
+    if (num_workers_ == 0)
+    {
+        return 0;
+    }
+
     if (load_size == 0)
     {
         load_size = batch_size_;
@@ -100,6 +105,11 @@ uint32_t ThreadBatchDataLoader::request(uint32_t load_size)
 
 uint32_t ThreadBatchDataLoader::wait_batch()
 {
+    if (num_workers_ == 0)
+    {
+        return 0;
+    }
+
     uint32_t num_items_waited = 0;
     for (uint32_t batch_item_index = 0; batch_item_index < batch_size_ && !batch_item_counts_.empty(); ++batch_item_index)
     {
@@ -119,6 +129,12 @@ uint32_t ThreadBatchDataLoader::wait_batch()
 
 uint8_t* ThreadBatchDataLoader::next_data()
 {
+    if (num_workers_ == 0)
+    {
+        uint8_t* batch_raster_ptr = raster_data_[0].release();
+        return batch_raster_ptr;
+    }
+
     if (processed_batch_count_ * batch_size_ >= location_len_)
     {
         // Remove buffer items that are no longer needed.

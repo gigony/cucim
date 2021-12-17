@@ -12,12 +12,58 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import concurrent.futures
+import json
+import os
+from openslide import OpenSlide
+from cucim.clara import CuImageIterator
 import time
 import sys
-from cucim.clara import CuImageIterator
+
+from contextlib import ContextDecorator
+from time import perf_counter
+from tifffile import TiffFile
+import sys
 import numpy as np
 from cucim import CuImage
+
+
+class Timer(ContextDecorator):
+    def __init__(self, message):
+        self.message = message
+        self.end = None
+
+    def elapsed_time(self):
+        self.end = perf_counter()
+        return self.end - self.start
+
+    def __enter__(self):
+        self.start = perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb):
+        if not self.end:
+            self.elapsed_time()
+        print("{} : {}".format(self.message, self.end - self.start))
+
+
+img = CuImage("notebooks/input/TUPAC-TR-467.svs")
+
+# cache = CuImage.cache("per_process", memory_capacity=1024)
+
+with Timer("  Thread elapsed time (cuCIM)") as timer:
+    a = img.read_region(num_workers=8)
+    print(a.shape)
+
+
+with Timer("  Thread elapsed time (tifffile)") as timer:
+    with TiffFile("notebooks/input/TUPAC-TR-467.svs") as tif:
+        a = tif.asarray()
+        print(a.shape)
+del img
+
+sys.exit(0)
+
 
 cache = CuImage.cache("per_process", memory_capacity=1024)
 
@@ -30,22 +76,24 @@ locations = np.array(locations)
 # locations = [[0, 0], [100, 0], [200, 0]]
 # locations = np.array(locations)
 
-region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
-for batch in region:
-    img2 = np.asarray(batch)
-    print(img2.shape)
-#     for item in img:
-#         print(item.shape)
+region = img.read_region(locations[0], (224, 224), batch_size=1, num_workers=0)
+img2 = np.asarray(region)
+print(img2.shape)
+# for batch in region:
+#     img2 = np.asarray(batch)
+#     print(img2.shape)
+# #     for item in img:
+# #         print(item.shape)
 
-region2 = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
+# region2 = img.read_region(locations[0], (224, 224), batch_size=1, num_workers=0)
 
-for batch in region:
-    img2 = np.asarray(batch)
-    print("@@@", img2.shape)
+# for batch in region:
+#     img2 = np.asarray(batch)
+#     print("@@@", img2.shape)
 
-for batch in region2:
-    img2 = np.asarray(batch)
-    print("@@@", img2.shape)
+# for batch in region2:
+#     img2 = np.asarray(batch)
+#     print("@@@", img2.shape)
 
 
 # region = img.read_region(locations, (224, 224), batch_size=1, num_workers=1)
@@ -53,8 +101,8 @@ for batch in region2:
 #     img2 = np.asarray(batch)
 #     print(img2.shape)
 
-    # for item in img2:
-    #     print(item.shape)
+# for item in img2:
+#     print(item.shape)
 
 
 # region = img.read_region(locations[0], (224, 224), batch_size=4, num_workers=8)
@@ -75,14 +123,6 @@ for batch in region2:
 
 
 sys.exit(0)
-
-
-from contextlib import ContextDecorator
-from time import perf_counter
-from tifffile import TiffFile
-import sys
-import numpy as np
-from cucim import CuImage
 
 
 class Timer(ContextDecorator):
@@ -120,17 +160,6 @@ with Timer("  Thread elapsed time (tifffile)") as timer:
 
 sys.exit(0)
 
-
-from openslide import OpenSlide
-import os
-import json
-import concurrent.futures
-from contextlib import ContextDecorator
-from time import perf_counter
-from tifffile import TiffFile
-import sys
-import numpy as np
-from cucim import CuImage
 
 # cache = CuImage.cache("per_process", memory_capacity=1024)
 

@@ -172,7 +172,7 @@ public:
                         uint32_t num_workers = 0,
                         uint32_t batch_size = 1,
                         bool drop_last = false,
-                        int32_t prefetch_factor = 2,
+                        uint32_t prefetch_factor = 2,
                         const DimIndices& region_dim_indices = {},
                         const io::Device& device = "cpu",
                         DLTensor* buf = nullptr,

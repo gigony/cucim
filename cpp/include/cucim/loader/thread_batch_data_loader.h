@@ -40,7 +40,7 @@ public:
                           uint64_t location_len,
                           size_t one_raster_size,
                           uint32_t batch_size,
-                          int32_t prefetch_factor,
+                          uint32_t prefetch_factor,
                           uint32_t num_workers);
 
     operator bool() const;
@@ -48,6 +48,12 @@ public:
     uint8_t* raster_pointer(const uint64_t location_index) const;
     uint32_t request(uint32_t load_size = 0);
     uint32_t wait_batch();
+    /**
+     * @brief Return the next batch of data.
+     *
+     * If the number of workers is zero, this function will return the ownership of the data.
+     * @return uint8_t* The pointer to the data.
+     */
     uint8_t* next_data();
 
     uint64_t size() const;
@@ -66,7 +72,7 @@ private:
     uint64_t location_len_ = 0;
     size_t one_rester_size_ = 0;
     uint32_t batch_size_ = 0;
-    int32_t prefetch_factor_ = 0;
+    uint32_t prefetch_factor_ = 0;
     uint32_t num_workers_ = 0;
 
     size_t buffer_item_len_ = 0;

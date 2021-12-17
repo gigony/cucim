@@ -190,22 +190,22 @@ bool IFD::read(const TIFF* tiff,
         }
         const int64_t* location = request->location;
         const uint64_t& location_len = request->location_len;
-        const int32_t& prefetch_factor = request->prefetch_factor;
+        uint32_t prefetch_factor = request->prefetch_factor;
         const uint32_t num_workers = request->num_workers;
 
-        // if (location_len < batch_size)
-        // {
-        //     batch_size = location_len;
-        // }
+        if (num_workers == 0 && location_len > 1)
+        {
+            throw std::runtime_error("Cannot read multiple images with zero workers!");
+        }
+
+        // Do not use prefetch if the image is too small
+        if (1 + prefetch_factor > location_len)
+        {
+            prefetch_factor = location_len - 1;
+        }
 
         size_t one_raster_size = raster_size;
         raster_size *= batch_size;
-
-        // if (!raster)
-        // {
-        //     raster = cucim_malloc(raster_size); // RGB image
-        //     memset(raster, 0, raster_size);
-        // }
 
         const IFD* ifd = this;
         const uint32_t load_size =
@@ -225,9 +225,17 @@ bool IFD::read(const TIFF* tiff,
         auto loader = std::make_unique<cucim::loader::ThreadBatchDataLoader>(
             load_func, location_len, one_raster_size, batch_size, prefetch_factor, num_workers);
 
-        loader->request(load_size);
-        raster = nullptr; // no image data is copied to raster if it is batch mode
-        out_image_data->loader = loader.release();
+        if (location_len > 1)
+        {
+            loader->request(load_size);
+            out_image_data->loader = loader.release(); // set loader to out_image_data
+        }
+        else
+        {
+            // Call load_func directly
+            load_func(loader.get(), 0);
+            raster = loader->next_data(); // raster will get the ownership of the data pointer
+        }
     }
     else
     {
@@ -668,7 +676,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
 
             if (*loader)
             {
-                loader->enqueue(decode_func);
+                loader->enqueue(std::move(decode_func));
             }
             else
             {
