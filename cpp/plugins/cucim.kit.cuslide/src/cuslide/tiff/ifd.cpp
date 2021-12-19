@@ -593,6 +593,9 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                                                     (pixel_offset_ex - tile_pixel_offset_x + 1) * samples_per_pixel :
                                                     (tw - tile_pixel_offset_x) * samples_per_pixel;
             auto decode_func = [=, &image_cache]() {
+                PROF_SCOPED_RANGE(PROF_EVENT_P(ifd_read_region_tiles_task, index_hash));
+                // uint64_t thread_id = std::hash<std::thread::id>{}(std::this_thread::get_id());
+                // uint64_t thread_hash = index_hash ^ thread_id;
                 uint32_t nbytes_tile_index = (tile_pixel_offset_sy * tw + tile_pixel_offset_x) * samples_per_pixel;
                 uint32_t dest_pixel_index = dest_pixel_index_x;
                 uint8_t* tile_data = nullptr;
@@ -865,6 +868,9 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
             uint32_t dest_pixel_index_orig = dest_pixel_index_x;
 
             auto decode_func = [=, &image_cache]() {
+                PROF_SCOPED_RANGE(PROF_EVENT_P(ifd_read_region_tiles_boundary_task, index_hash));
+                // uint64_t thread_id = std::hash<std::thread::id>{}(std::this_thread::get_id());
+                // uint64_t thread_hash = index_hash ^ thread_id;
                 uint32_t nbytes_tile_index = nbytes_tile_index_orig;
                 uint32_t dest_pixel_index = dest_pixel_index_orig;
 
