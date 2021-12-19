@@ -667,7 +667,7 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     std::string device_name = std::string(device);
     cucim::io::format::ImageReaderRegionRequestDesc request{};
 
-    if (location_len > 1 || batch_size > 1)
+    if (location_len > 1 || batch_size > 1 || num_workers > 0)
     {
         // ::Note:: Here, to pass vector data to C interface, we move data in the original vector to the vector in heap
         // memory and create a unique pointer with 'new'. The data is transferred to ThreadBatchDataLoader class members

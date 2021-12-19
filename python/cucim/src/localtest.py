@@ -13,6 +13,44 @@
 # limitations under the License.
 #
 
+from contextlib import ContextDecorator
+from time import perf_counter
+from tifffile import TiffFile
+import sys
+import numpy as np
+from cucim import CuImage
+
+
+class Timer(ContextDecorator):
+    def __init__(self, message):
+        self.message = message
+        self.end = None
+
+    def elapsed_time(self):
+        self.end = perf_counter()
+        return self.end - self.start
+
+    def __enter__(self):
+        self.start = perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb):
+        if not self.end:
+            self.elapsed_time()
+        print("{} : {}".format(self.message, self.end - self.start))
+
+
+img = CuImage("notebooks/input/TUPAC-TR-467.svs")
+
+cache = CuImage.cache("per_process", memory_capacity=1024)
+
+with Timer("  Thread elapsed time (cuCIM)") as timer:
+    a = img.read_region(num_workers=16)
+    print(a)
+
+
+sys.exit(0)
+
 from tifffile import TiffFile
 import time
 import os
@@ -113,7 +151,7 @@ def experiment_thread(cache_strategy, input_file, num_threads, start_location, p
     import psutil
     print("  ", psutil.virtual_memory())
     # range(1, num_threads + 1): # range(1, num_threads + 1): # (num_threads,):
-    for num_workers in (16,):
+    for num_workers in (num_threads,):
         openslide_time = 1
         cucim_time = 1
         rasterio_time = 1
@@ -191,17 +229,17 @@ def experiment_thread(cache_strategy, input_file, num_threads, start_location, p
             print(c)
             cucim_time = timer.elapsed_time()
 
-        with Timer("  Thread elapsed time (cuCIM)") as timer:
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=num_workers
-            ) as executor:
-                executor.map(
-                    load_tile_cucim_chunk,
-                    repeat(input_file),
-                    start_loc_list_iter,
-                    repeat(patch_size)
-                )
-            cucim_time = timer.elapsed_time()
+        # with Timer("  Thread elapsed time (cuCIM)") as timer:
+        #     with concurrent.futures.ThreadPoolExecutor(
+        #         max_workers=num_workers
+        #     ) as executor:
+        #         executor.map(
+        #             load_tile_cucim_chunk,
+        #             repeat(input_file),
+        #             start_loc_list_iter,
+        #             repeat(patch_size)
+        #         )
+        #     cucim_time = timer.elapsed_time()
         print(f"  hit: {cache.hit_count}   miss: {cache.miss_count}")
         print("  ", psutil.virtual_memory())
 
@@ -349,7 +387,7 @@ def experiment_process(cache_strategy, input_file, num_processes, start_location
 
 # experiment_thread("nocache", "notebooks/input/image2.tif", 12, 0, 256)
 # experiment_process("nocache", "notebooks/input/image2.tif", 12, 0, 256)
-experiment_thread("per_process", "notebooks/input/image2.tif", 12, 1, 256)
+experiment_thread("per_process", "notebooks/input/image2.tif", 3, 1, 256)
 # experiment_process("per_process", "notebooks/input/image2.tif", 12, 0, 256)
 # experiment_thread("shared_memory", "notebooks/input/image2.tif", 12, 0, 256)
 # experiment_process("shared_memory", "notebooks/input/image2.tif", 12, 0, 256)

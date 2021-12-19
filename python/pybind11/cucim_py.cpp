@@ -429,7 +429,7 @@ py::object py_read_region(const CuImage& cuimg,
                           const std::string& shm_name,
                           const py::kwargs& kwargs)
 {
-    if (size.size() != 2)
+    if (!size.empty() && size.size() != 2)
     {
         throw std::runtime_error("size (patch size) should be 2!");
     }

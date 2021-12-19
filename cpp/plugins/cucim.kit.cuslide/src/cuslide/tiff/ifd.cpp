@@ -221,7 +221,7 @@ bool IFD::read(const TIFF* tiff,
         const uint32_t load_size =
             std::min(static_cast<uint64_t>(batch_size) * (1 + request->prefetch_factor), location_len);
 
-        if (location_len > 1 || batch_size > 1)
+        if (location_len > 1 || batch_size > 1 || num_workers > 0)
         {
             // Reconstruct location
             std::unique_ptr<std::vector<int64_t>>* location_unique =
@@ -249,6 +249,13 @@ bool IFD::read(const TIFF* tiff,
                 load_func, std::move(request_location), std::move(request_size), location_len, one_raster_size,
                 batch_size, prefetch_factor, num_workers);
             loader->request(load_size);
+
+            // If it reads entire image with multi threads (using loader), fetch the next item.
+            if (location_len == 1 && batch_size == 1)
+            {
+                raster = loader->next_data();
+            }
+
             out_image_data->loader = loader.release(); // set loader to out_image_data
         }
         else
