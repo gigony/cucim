@@ -27,12 +27,16 @@ namespace cucim::loader
 {
 
 ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
+                                             std::unique_ptr<std::vector<int64_t>> location,
+                                             std::unique_ptr<std::vector<int64_t>> image_size,
                                              uint64_t location_len,
                                              size_t one_raster_size,
                                              uint32_t batch_size,
                                              uint32_t prefetch_factor,
                                              uint32_t num_workers)
     : load_func_(load_func),
+      location_(std::move(location)),
+      image_size_(std::move(image_size)),
       location_len_(location_len),
       one_rester_size_(one_raster_size),
       batch_size_(batch_size),
@@ -148,7 +152,7 @@ uint8_t* ThreadBatchDataLoader::next_data()
 
     uint8_t* batch_raster_ptr = raster_data_[buffer_item_head_index_].release();
 
-    raster_data_[buffer_item_head_index_] = std::move(std::make_unique<uint8_t[]>(buffer_size_));
+    raster_data_[buffer_item_head_index_].reset(new uint8_t[buffer_size_]);
     buffer_item_head_index_ = (buffer_item_head_index_ + 1) % buffer_item_len_;
 
     current_data_ = batch_raster_ptr;

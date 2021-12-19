@@ -1108,7 +1108,7 @@ std::string TIFF::metadata()
 
 void* TIFF::operator new(std::size_t sz)
 {
-    return cucim_malloc(sz);
+    return cucim_malloc(sz + 10);
 }
 
 void TIFF::operator delete(void* ptr)

@@ -37,6 +37,8 @@ public:
     using LoadFunc = std::function<void(ThreadBatchDataLoader* loader_ptr, uint64_t location_index)>;
 
     ThreadBatchDataLoader(LoadFunc load_func,
+                          std::unique_ptr<std::vector<int64_t>> location,
+                          std::unique_ptr<std::vector<int64_t>> image_size,
                           uint64_t location_len,
                           size_t one_raster_size,
                           uint32_t batch_size,
@@ -68,6 +70,8 @@ public:
 
 private:
     LoadFunc load_func_;
+    std::unique_ptr<std::vector<int64_t>> location_ = nullptr;
+    std::unique_ptr<std::vector<int64_t>> image_size_ = nullptr;
     uint64_t location_len_ = 0;
     size_t one_rester_size_ = 0;
     uint32_t batch_size_ = 0;

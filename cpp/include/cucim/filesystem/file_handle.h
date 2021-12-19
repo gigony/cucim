@@ -25,6 +25,8 @@
 
 #include <fmt/format.h>
 
+#include "cucim/memory/memory_manager.h"
+
 typedef void* CUfileHandle_t;
 typedef void* CuCIMFileHandle_share;
 typedef void* CuCIMFileHandle_ptr;
@@ -57,6 +59,12 @@ struct EXPORT_VISIBLE CuCIMFileHandle : public std::enable_shared_from_this<CuCI
 
     ~CuCIMFileHandle()
     {
+        if (path && path[0] != '\0')
+        {
+            cucim_free(path);
+            path = nullptr;
+        }
+
         if (deleter)
         {
             deleter(this);

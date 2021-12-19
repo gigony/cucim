@@ -205,7 +205,9 @@ struct ImageParserDesc
 struct ImageReaderRegionRequestDesc
 {
     int64_t* location = nullptr;
+    void* location_unique = nullptr;
     int64_t* size = nullptr;
+    void* size_unique = nullptr;
     uint64_t location_len = 1;
     int32_t size_ndim = 2;
     uint16_t level = 0;

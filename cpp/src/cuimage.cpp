@@ -227,7 +227,8 @@ CuImage::CuImage(const CuImage* cuimg,
 CuImage::CuImage() : std::enable_shared_from_this<CuImage>()
 {
     PROF_SCOPED_RANGE(PROF_EVENT_P(cuimage_cuimage, 5));
-    file_handle_->path = const_cast<char*>("<null>");
+    file_handle_ = std::make_shared<CuCIMFileHandle>();
+    file_handle_->path = const_cast<char*>("");
 }
 
 CuImage::~CuImage()
@@ -261,7 +262,14 @@ CuImage::~CuImage()
             switch (device_type)
             {
             case io::DeviceType::kCPU:
-                cucim_free(image_data_->container.data);
+                if (image_data_->loader)
+                {
+                    delete[] reinterpret_cast<uint8_t*>(image_data_->container.data);
+                }
+                else
+                {
+                    cucim_free(image_data_->container.data);
+                }
                 image_data_->container.data = nullptr;
                 break;
             case io::DeviceType::kCUDA:
@@ -658,8 +666,30 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     uint64_t location_len = location.size() / size_ndim;
     std::string device_name = std::string(device);
     cucim::io::format::ImageReaderRegionRequestDesc request{};
-    request.location = location.data();
-    request.size = size.data();
+
+    if (location_len > 1 || batch_size > 1)
+    {
+        // ::Note:: Here, to pass vector data to C interface, we move data in the original vector to the vector in heap
+        // memory and create a unique pointer with 'new'. The data is transferred to ThreadBatchDataLoader class members
+        // (locations_ and size_) for automatic deletion on exit.
+        auto location_ptr = new std::vector<int64_t>();
+        location_ptr->swap(location);
+        auto location_unique = reinterpret_cast<void*>(new std::unique_ptr<std::vector<int64_t>>(location_ptr));
+
+        auto size_ptr = new std::vector<int64_t>();
+        size_ptr->swap(size);
+        auto size_unique = reinterpret_cast<void*>(new std::unique_ptr<std::vector<int64_t>>(size_ptr));
+
+        request.location = location_ptr->data();
+        request.location_unique = location_unique;
+        request.size = size_ptr->data();
+        request.size_unique = size_unique;
+    }
+    else
+    {
+        request.location = location.data();
+        request.size = size.data();
+    }
     request.location_len = location_len;
     request.size_ndim = size_ndim;
     request.level = level;
@@ -819,7 +849,7 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     const uint16_t level_ndim = 2;
     std::pmr::vector<int64_t> level_dimensions(&resource);
     level_dimensions.reserve(level_ndim * 1); // it has only one size
-    level_dimensions.insert(level_dimensions.end(), &size[0], &size[level_ndim]);
+    level_dimensions.insert(level_dimensions.end(), request.location, &request.location[request.location_len]);
 
     std::pmr::vector<float> level_downsamples(&resource);
     level_downsamples.reserve(1);
@@ -827,7 +857,8 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
 
     std::pmr::vector<uint32_t> level_tile_sizes(&resource);
     level_tile_sizes.reserve(level_ndim * 1); // it has only one size
-    level_tile_sizes.insert(level_tile_sizes.end(), &size[0], &size[level_ndim]); // same with level_dimension
+    level_tile_sizes.insert(
+        level_tile_sizes.end(), request.location, &request.location[request.location_len]); // same with level_dimension
 
     // Empty associated images
     const size_t associated_image_count = 0;
@@ -1319,7 +1350,13 @@ void CuImageIterator<DataType>::increase_index_()
         auto next_data = loader->next_data();
         if (next_data)
         {
-            cuimg_->image_data_->container.data = next_data;
+            auto image_data = reinterpret_cast<uint8_t**>(&(cuimg_->image_data_->container.data));
+            if (*image_data)
+            {
+                delete[] * image_data;
+            }
+            *image_data = next_data;
+
             if (loader->batch_size() > 1)
             {
                 // Set value for dimension 'N'

@@ -145,7 +145,6 @@ bool IFD::read(const TIFF* tiff,
     }
     cucim::io::Device out_device(device_name);
 
-
     int64_t sx = request->location[0];
     int64_t sy = request->location[1];
     uint32_t batch_size = request->batch_size;
@@ -222,30 +221,47 @@ bool IFD::read(const TIFF* tiff,
         const uint32_t load_size =
             std::min(static_cast<uint64_t>(batch_size) * (1 + request->prefetch_factor), location_len);
 
-        auto load_func = [tiff, ifd, location, w, h, out_device](
-                             cucim::loader::ThreadBatchDataLoader* loader_ptr, uint64_t location_index) {
-            uint8_t* raster_ptr = loader_ptr->raster_pointer(location_index);
-
-            if (!read_region_tiles(tiff, ifd, location[location_index * 2], location[location_index * 2 + 1], w, h,
-                                   raster_ptr, out_device, loader_ptr))
-            {
-                fmt::print(stderr, "[Error] Failed to read region with libjpeg!\n");
-            }
-        };
-
-        auto loader = std::make_unique<cucim::loader::ThreadBatchDataLoader>(
-            load_func, location_len, one_raster_size, batch_size, prefetch_factor, num_workers);
-
         if (location_len > 1 || batch_size > 1)
         {
+            // Reconstruct location
+            std::unique_ptr<std::vector<int64_t>>* location_unique =
+                reinterpret_cast<std::unique_ptr<std::vector<int64_t>>*>(request->location_unique);
+            std::unique_ptr<std::vector<int64_t>> request_location = std::move(*location_unique);
+            delete location_unique;
+
+            // Reconstruct size
+            std::unique_ptr<std::vector<int64_t>>* size_unique =
+                reinterpret_cast<std::unique_ptr<std::vector<int64_t>>*>(request->size_unique);
+            std::unique_ptr<std::vector<int64_t>> request_size = std::move(*size_unique);
+            delete size_unique;
+
+            auto load_func = [tiff, ifd, location, w, h, out_device](
+                                 cucim::loader::ThreadBatchDataLoader* loader_ptr, uint64_t location_index) {
+                uint8_t* raster_ptr = loader_ptr->raster_pointer(location_index);
+
+                if (!read_region_tiles(tiff, ifd, location[location_index * 2], location[location_index * 2 + 1], w, h,
+                                       raster_ptr, out_device, loader_ptr))
+                {
+                    fmt::print(stderr, "[Error] Failed to read region!\n");
+                }
+            };
+            auto loader = std::make_unique<cucim::loader::ThreadBatchDataLoader>(
+                load_func, std::move(request_location), std::move(request_size), location_len, one_raster_size,
+                batch_size, prefetch_factor, num_workers);
             loader->request(load_size);
             out_image_data->loader = loader.release(); // set loader to out_image_data
         }
         else
         {
-            // Call load_func directly
-            load_func(loader.get(), 0);
-            raster = loader->next_data(); // raster will get the ownership of the data pointer
+            if (!raster)
+            {
+                raster = cucim_malloc(one_raster_size);
+            }
+
+            if (!read_region_tiles(tiff, ifd, location[0], location[1], w, h, raster, out_device, nullptr))
+            {
+                fmt::print(stderr, "[Error] Failed to read region!\n");
+            }
         }
     }
     else
@@ -675,7 +691,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                 }
             };
 
-            if (*loader)
+            if (loader && *loader)
             {
                 loader->enqueue(std::move(decode_func));
             }
@@ -1012,7 +1028,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                 }
             };
 
-            if (*loader)
+            if (loader && *loader)
             {
                 loader->enqueue(std::move(decode_func));
             }
