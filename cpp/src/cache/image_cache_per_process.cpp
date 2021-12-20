@@ -18,6 +18,7 @@
 #include "image_cache_per_process.h"
 
 #include "cucim/memory/memory_manager.h"
+#include "cucim/util/cuda.h"
 
 #include <fmt/format.h>
 
@@ -53,19 +54,42 @@ struct PerProcessImageCacheItem
     std::shared_ptr<ImageCacheValue> value;
 };
 
-PerProcessImageCacheValue::PerProcessImageCacheValue(void* data, uint64_t size, void* user_obj)
-    : ImageCacheValue(data, size, user_obj){};
+PerProcessImageCacheValue::PerProcessImageCacheValue(void* data,
+                                                     uint64_t size,
+                                                     void* user_obj,
+                                                     const cucim::io::DeviceType device_type)
+    : ImageCacheValue(data, size, user_obj, device_type){};
+
 PerProcessImageCacheValue::~PerProcessImageCacheValue()
 {
     if (data)
     {
-        cucim_free(data);
+        switch (device_type)
+        {
+        case io::DeviceType::kCPU:
+            cucim_free(data);
+            break;
+        case io::DeviceType::kCUDA: {
+            cudaError_t cuda_status;
+            CUDA_TRY(cudaFree(data));
+            if (cuda_status)
+            {
+                fmt::print(stderr, "[Error] Cannot allocate GPU memory!\n");
+            }
+            break;
+        }
+        case io::DeviceType::kPinned:
+        case io::DeviceType::kCPUShared:
+        case io::DeviceType::kCUDAShared:
+            fmt::print(stderr, "Device type {} is not supported!\n", device_type);
+            break;
+        }
         data = nullptr;
     }
 };
 
-PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config)
-    : ImageCache(config, CacheType::kPerProcess),
+PerProcessImageCache::PerProcessImageCache(const ImageCacheConfig& config, const cucim::io::DeviceType device_type)
+    : ImageCache(config, CacheType::kPerProcess, device_type),
       mutex_array_(config.mutex_pool_capacity),
       capacity_nbytes_(kOneMiB * config.memory_capacity),
       capacity_(config.capacity),
@@ -89,14 +113,36 @@ std::shared_ptr<ImageCacheKey> PerProcessImageCache::create_key(uint64_t file_ha
 {
     return std::make_shared<ImageCacheKey>(file_hash, index);
 }
-std::shared_ptr<ImageCacheValue> PerProcessImageCache::create_value(void* data, uint64_t size)
+std::shared_ptr<ImageCacheValue> PerProcessImageCache::create_value(void* data,
+                                                                    uint64_t size,
+                                                                    const cucim::io::DeviceType device_type)
 {
-    return std::make_shared<PerProcessImageCacheValue>(data, size);
+    return std::make_shared<PerProcessImageCacheValue>(data, size, nullptr, device_type);
 }
 
 void* PerProcessImageCache::allocate(std::size_t n)
 {
-    return cucim_malloc(n);
+    switch (device_type_)
+    {
+    case io::DeviceType::kCPU:
+        return cucim_malloc(n);
+    case io::DeviceType::kCUDA: {
+        cudaError_t cuda_status;
+        void* image_data_ptr = nullptr;
+        CUDA_TRY(cudaMalloc(&image_data_ptr, n));
+        if (cuda_status)
+        {
+            fmt::print(stderr, "[Error] Cannot allocate GPU memory!\n");
+        }
+        return image_data_ptr;
+    }
+    case io::DeviceType::kPinned:
+    case io::DeviceType::kCPUShared:
+    case io::DeviceType::kCUDAShared:
+        fmt::print(stderr, "Device type {} is not supported!\n", device_type_);
+        break;
+    }
+    return nullptr;
 }
 
 void PerProcessImageCache::lock(uint64_t index)

@@ -44,9 +44,22 @@ img = CuImage("notebooks/input/TUPAC-TR-467.svs")
 
 cache = CuImage.cache("per_process", memory_capacity=1024)
 
+width, height = img.size("XY")
+start_location = 1
+patch_size = 224
+
+start_loc_data = [(sx, sy)
+                  for sy in range(start_location, height, patch_size)
+                  for sx in range(start_location, width, patch_size)]
+
 with Timer("  Thread elapsed time (cuCIM)") as timer:
-    a = img.read_region(num_workers=16)
-    print(a)
+    # a = img.read_region(num_workers=16)
+    # print(a)
+    batch_iter = img.read_region(
+        iter(start_loc_data), (patch_size, patch_size), batch_size=32, device="cuda", num_workers=16)
+    c = 0
+    for batch in batch_iter:
+        c += 1
 
 
 sys.exit(0)

@@ -123,6 +123,7 @@ superbuild_depend(cli11)
 superbuild_depend(pugixml)
 superbuild_depend(json)
 superbuild_depend(libdeflate)
+superbuild_depend(nvjpeg)
 
 ################################################################################
 # Find cucim package
@@ -160,6 +161,8 @@ add_library(${CUCIM_PLUGIN_NAME}
     src/cuslide/deflate/deflate.h
     src/cuslide/jpeg/libjpeg_turbo.cpp
     src/cuslide/jpeg/libjpeg_turbo.h
+    src/cuslide/jpeg/libnvjpeg.cpp
+    src/cuslide/jpeg/libnvjpeg.h
     src/cuslide/jpeg2k/color_conversion.cpp
     src/cuslide/jpeg2k/color_conversion.h
     src/cuslide/jpeg2k/color_table.h
@@ -218,6 +221,7 @@ target_link_libraries(${CUCIM_PLUGIN_NAME}
             deps::pugixml
             deps::json
             deps::libdeflate
+            deps::nvjpeg_static
         )
 
 target_include_directories(${CUCIM_PLUGIN_NAME}

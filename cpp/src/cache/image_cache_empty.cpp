@@ -27,7 +27,7 @@ std::shared_ptr<ImageCacheKey> EmptyImageCache::create_key(uint64_t, uint64_t)
 {
     return std::make_shared<ImageCacheKey>(0, 0);
 }
-std::shared_ptr<ImageCacheValue> EmptyImageCache::create_value(void*, uint64_t)
+std::shared_ptr<ImageCacheValue> EmptyImageCache::create_value(void*, uint64_t, const cucim::io::DeviceType)
 {
     return std::make_shared<ImageCacheValue>(nullptr, 0);
 }

@@ -253,7 +253,7 @@ ssize_t pread(const std::shared_ptr<CuFileDriver>& fd, void* buf, size_t count, 
     }
     else
     {
-        fmt::print(stderr, "fd (CuFileDriver) is null!");
+        fmt::print(stderr, "fd (CuFileDriver) is null!\n");
         return -1;
     }
 }
@@ -265,7 +265,7 @@ ssize_t pwrite(const std::shared_ptr<CuFileDriver>& fd, const void* buf, size_t 
     }
     else
     {
-        fmt::print(stderr, "fd (CuFileDriver) is null!");
+        fmt::print(stderr, "fd (CuFileDriver) is null!\n");
         return -1;
     }
 }

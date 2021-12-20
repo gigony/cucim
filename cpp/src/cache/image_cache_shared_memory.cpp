@@ -154,8 +154,11 @@ struct ImageCacheItemDetail
     deleter_type<SharedMemoryImageCacheValue> value;
 };
 
-SharedMemoryImageCacheValue::SharedMemoryImageCacheValue(void* data, uint64_t size, void* user_obj)
-    : ImageCacheValue(data, size, user_obj){};
+SharedMemoryImageCacheValue::SharedMemoryImageCacheValue(void* data,
+                                                         uint64_t size,
+                                                         void* user_obj,
+                                                         const cucim::io::DeviceType device_type)
+    : ImageCacheValue(data, size, user_obj, device_type){};
 
 SharedMemoryImageCacheValue::~SharedMemoryImageCacheValue()
 {
@@ -169,8 +172,8 @@ SharedMemoryImageCacheValue::~SharedMemoryImageCacheValue()
     }
 };
 
-SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
-    : ImageCache(config, CacheType::kSharedMemory),
+SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config, const cucim::io::DeviceType device_type)
+    : ImageCache(config, CacheType::kSharedMemory, device_type),
       segment_(create_segment(config)),
       //   mutex_array_(nullptr, shared_mem_deleter<boost::interprocess::interprocess_mutex>(segment_)),
       size_nbytes_(nullptr, shared_mem_deleter<std::atomic<uint64_t>>(segment_)),
@@ -189,6 +192,12 @@ SharedMemoryImageCache::SharedMemoryImageCache(const ImageCacheConfig& config)
     const uint32_t& capacity = config.capacity;
     const uint32_t& mutex_pool_capacity = config.mutex_pool_capacity;
     const bool& record_stat = config.record_stat;
+
+    if (device_type != cucim::io::DeviceType::kCPU)
+    {
+        throw std::runtime_error(
+            fmt::format("[Error] SharedMemoryImageCache doesn't support other memory type other than CPU memory!\n"));
+    }
 
     try
     {
@@ -282,11 +291,13 @@ std::shared_ptr<ImageCacheKey> SharedMemoryImageCache::create_key(uint64_t file_
 
     return std::shared_ptr<ImageCacheKey>(key.get().get(), null_deleter<decltype(key)>(key));
 }
-std::shared_ptr<ImageCacheValue> SharedMemoryImageCache::create_value(void* data, uint64_t size)
+std::shared_ptr<ImageCacheValue> SharedMemoryImageCache::create_value(void* data,
+                                                                      uint64_t size,
+                                                                      const cucim::io::DeviceType device_type)
 {
     auto value = boost::interprocess::make_managed_shared_ptr(
         segment_->find_or_construct<SharedMemoryImageCacheValue>(boost::interprocess::anonymous_instance)(
-            data, size, &*segment_),
+            data, size, &*segment_, device_type),
         *segment_);
 
     return std::shared_ptr<ImageCacheValue>(value.get().get(), null_deleter<decltype(value)>(value));

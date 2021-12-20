@@ -155,6 +155,8 @@ bool IFD::read(const TIFF* tiff,
 
     size_t raster_size = w * h * samples_per_pixel_;
     void* raster = nullptr;
+    auto raster_type = cucim::io::DeviceType::kCPU;
+
     DLTensor* out_buf = request->buf;
     bool is_buf_available = out_buf && out_buf->data;
 
@@ -245,9 +247,31 @@ bool IFD::read(const TIFF* tiff,
                     fmt::print(stderr, "[Error] Failed to read region!\n");
                 }
             };
+
+            uint32_t maximum_tile_count = 0;
+
+            // Set raster_type to CUDA because loader will handle this with nvjpeg
+            if (out_device.type() == cucim::io::DeviceType::kCUDA)
+            {
+                raster_type = cucim::io::DeviceType::kCUDA;
+
+                // The maximal number of tiles (x-axis) overapped with the given patch
+                uint32_t tile_across_count = std::min(static_cast<uint64_t>(ifd->width_) + (ifd->tile_width_ - 1),
+                                                      static_cast<uint64_t>(w) + (ifd->tile_width_ - 1)) /
+                                                 ifd->tile_width_ +
+                                             1;
+                // The maximal number of tiles (y-axis) overapped with the given patch
+                uint32_t tile_down_count = std::min(static_cast<uint64_t>(ifd->height_) + (ifd->tile_height_ - 1),
+                                                    static_cast<uint64_t>(h) + (ifd->tile_height_ - 1)) /
+                                               ifd->tile_height_ +
+                                           1;
+                // The maximal number of possible tiles to load for the given image batch
+                maximum_tile_count = tile_across_count * tile_down_count * batch_size;
+            }
+
             auto loader = std::make_unique<cucim::loader::ThreadBatchDataLoader>(
-                load_func, std::move(request_location), std::move(request_size), location_len, one_raster_size,
-                batch_size, prefetch_factor, num_workers);
+                load_func, out_device, maximum_tile_count, std::move(request_location), std::move(request_size),
+                location_len, one_raster_size, batch_size, prefetch_factor, num_workers);
             loader->request(load_size);
 
             // If it reads entire image with multi threads (using loader), fetch the next item.
@@ -354,7 +378,7 @@ bool IFD::read(const TIFF* tiff,
     }
 
     // Copy the raster memory and free it if needed.
-    if (!is_buf_available && raster)
+    if (!is_buf_available && raster && raster_type == cucim::io::DeviceType::kCPU)
     {
         cucim::memory::move_raster_from_host(&raster, raster_size, out_device);
     }
@@ -701,7 +725,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
 
             if (loader && *loader)
             {
-                loader->enqueue(std::move(decode_func));
+                loader->enqueue(std::move(decode_func), index);
             }
             else
             {
@@ -1039,7 +1063,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
 
             if (loader && *loader)
             {
-                loader->enqueue(std::move(decode_func));
+                loader->enqueue(std::move(decode_func), index);
             }
             else
             {

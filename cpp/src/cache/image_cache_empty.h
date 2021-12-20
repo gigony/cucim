@@ -35,7 +35,8 @@ public:
     EmptyImageCache(const ImageCacheConfig& config);
 
     std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) override;
-    std::shared_ptr<ImageCacheValue> create_value(void* data, uint64_t size) override;
+    std::shared_ptr<ImageCacheValue> create_value(
+        void* data, uint64_t size, const cucim::io::DeviceType device_type = cucim::io::DeviceType::kCPU) override;
 
     void* allocate(std::size_t n) override;
     void lock(uint64_t index) override;

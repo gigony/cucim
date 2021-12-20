@@ -19,14 +19,18 @@
 
 #include <cassert>
 
+#include <cuda_runtime.h>
 #include <fmt/format.h>
 
 #include "cucim/profiler/nvtx3.h"
+#include "cucim/util/cuda.h"
 
 namespace cucim::loader
 {
 
 ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
+                                             cucim::io::Device out_device,
+                                             uint32_t maximum_tile_count,
                                              std::unique_ptr<std::vector<int64_t>> location,
                                              std::unique_ptr<std::vector<int64_t>> image_size,
                                              uint64_t location_len,
@@ -35,6 +39,7 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
                                              uint32_t prefetch_factor,
                                              uint32_t num_workers)
     : load_func_(load_func),
+      out_device_(out_device),
       location_(std::move(location)),
       image_size_(std::move(image_size)),
       location_len_(location_len),
@@ -42,7 +47,6 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
       batch_size_(batch_size),
       prefetch_factor_(prefetch_factor),
       num_workers_(num_workers),
-      buffer_item_len_(std::min(static_cast<uint64_t>(location_len), static_cast<uint64_t>(1 + prefetch_factor))),
       buffer_size_(one_raster_size * batch_size),
       thread_pool_(num_workers),
       queued_item_count_(0),
@@ -52,16 +56,118 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
       current_data_(nullptr),
       current_data_batch_size_(0)
 {
+    // Update cuda_batch_size_, prefetch_factor_, and cuda_image_cache_ if needed
+    init_cuda_config(maximum_tile_count);
+
+    buffer_item_len_ = std::min(static_cast<uint64_t>(location_len_), static_cast<uint64_t>(1 + prefetch_factor_)),
+
     raster_data_.reserve(buffer_item_len_);
+    cucim::io::DeviceType device_type = out_device_.type();
     for (size_t i = 0; i < buffer_item_len_; ++i)
     {
-        raster_data_.emplace_back(std::make_unique<uint8_t[]>(buffer_size_));
+        switch (device_type)
+        {
+        case io::DeviceType::kCPU:
+            raster_data_.emplace_back(static_cast<uint8_t*>(cucim_malloc(buffer_size_)));
+            break;
+        case io::DeviceType::kCUDA: {
+            cudaError_t cuda_status;
+            void* image_data_ptr = nullptr;
+            CUDA_TRY(cudaMalloc(&image_data_ptr, buffer_size_));
+            if (cuda_status)
+            {
+                fmt::print(stderr, "[Error] Cannot allocate GPU memory!\n");
+            }
+            break;
+        }
+        case io::DeviceType::kPinned:
+        case io::DeviceType::kCPUShared:
+        case io::DeviceType::kCUDAShared:
+            fmt::print(stderr, "Device type {} is not supported!\n", device_type);
+            break;
+        }
+    }
+}
+
+ThreadBatchDataLoader::~ThreadBatchDataLoader()
+{
+    cucim::io::DeviceType device_type = out_device_.type();
+    for (auto& raster_ptr : raster_data_)
+    {
+        switch (device_type)
+        {
+        case io::DeviceType::kCPU:
+            if (raster_ptr)
+            {
+                cucim_free(raster_ptr);
+            }
+            break;
+        case io::DeviceType::kCUDA:
+            cudaError_t cuda_status;
+            if (raster_ptr)
+            {
+                CUDA_TRY(cudaFree(raster_ptr));
+            }
+            if (cuda_status)
+            {
+                fmt::print(stderr, "[Error] Cannot free memory!");
+            }
+            break;
+        case io::DeviceType::kPinned:
+        case io::DeviceType::kCPUShared:
+        case io::DeviceType::kCUDAShared:
+            fmt::print(stderr, "Device type {} is not supported!", device_type);
+            break;
+        }
+        raster_ptr = nullptr;
     }
 }
 
 ThreadBatchDataLoader::operator bool() const
 {
     return (num_workers_ > 0);
+}
+
+void ThreadBatchDataLoader::init_cuda_config(uint32_t maximum_tile_count)
+{
+    if (maximum_tile_count > 1)
+    {
+        // Calculate nearlest power of 2 that is equal or larger than the given number.
+        // (Test with https://godbolt.org/z/n7qhPYzfP)
+        int next_candidate = maximum_tile_count & (maximum_tile_count - 1);
+        if (next_candidate > 0)
+        {
+            maximum_tile_count <<= 1;
+            while (true)
+            {
+                next_candidate = maximum_tile_count & (maximum_tile_count - 1);
+                if (next_candidate == 0)
+                {
+                    break;
+                }
+                maximum_tile_count = next_candidate;
+            }
+        }
+        cuda_batch_size_ = maximum_tile_count;
+
+        // Update prefetch_factor
+        // (We can decode/cache tiles at least two times of the number of tiles needed for nvjpeg)
+        // E.g., (128 - 1) / 32 + 1 ~= 4 => 8 for cuda_batch_size(=128) and batch_size(=32)
+        prefetch_factor_ = ((cuda_batch_size_ - 1) / batch_size_ + 1) * 2;
+
+        // Create cuda image cache
+        cucim::cache::ImageCacheConfig cache_config{};
+
+        cache_config.type = cucim::cache::CacheType::kPerProcess;
+        cache_config.memory_capacity = 1024 * 1024; // 1TB: Set to fairly large memory so that memory_capacity is not a
+                                                    // limiter.
+        cache_config.capacity = cuda_batch_size_; // TO WORK
+
+        // TO WORK
+
+
+        cuda_image_cache_ = std::move(cucim::cache::ImageCacheManager::create_cache(cache_config));
+    }
 }
 
 uint8_t* ThreadBatchDataLoader::raster_pointer(const uint64_t location_index) const
@@ -71,7 +177,7 @@ uint8_t* ThreadBatchDataLoader::raster_pointer(const uint64_t location_index) co
 
     assert(buffer_item_index < buffer_item_len_);
 
-    uint8_t* batch_raster_ptr = raster_data_[buffer_item_index].get();
+    uint8_t* batch_raster_ptr = raster_data_[buffer_item_index];
 
     return &batch_raster_ptr[raster_data_index * one_rester_size_];
 }
@@ -112,6 +218,7 @@ uint32_t ThreadBatchDataLoader::wait_batch()
         return 0;
     }
 
+    fmt::print("# Batch index {}\n", processed_batch_count_);
     uint32_t num_items_waited = 0;
     for (uint32_t batch_item_index = 0; batch_item_index < batch_size_ && !batch_item_counts_.empty(); ++batch_item_index)
     {
@@ -121,6 +228,9 @@ uint32_t ThreadBatchDataLoader::wait_batch()
             auto& future = tasks_.front();
             future.wait();
             tasks_.pop_front();
+            uint32_t index = indices_.front();
+            indices_.pop_front();
+            fmt::print("  index: {}\n", index);
         }
         batch_item_counts_.pop_front();
         num_items_waited += batch_item_count;
@@ -133,7 +243,8 @@ uint8_t* ThreadBatchDataLoader::next_data()
 {
     if (num_workers_ == 0)
     {
-        uint8_t* batch_raster_ptr = raster_data_[0].release();
+        uint8_t* batch_raster_ptr = raster_data_[0];
+        raster_data_[0] = nullptr;
         return batch_raster_ptr;
     }
 
@@ -150,9 +261,9 @@ uint8_t* ThreadBatchDataLoader::next_data()
     // Wait until the batch is ready.
     wait_batch();
 
-    uint8_t* batch_raster_ptr = raster_data_[buffer_item_head_index_].release();
+    uint8_t* batch_raster_ptr = raster_data_[buffer_item_head_index_];
 
-    raster_data_[buffer_item_head_index_].reset(new uint8_t[buffer_size_]);
+    raster_data_[buffer_item_head_index_] = static_cast<uint8_t*>(cucim_malloc(buffer_size_));
     buffer_item_head_index_ = (buffer_item_head_index_ + 1) % buffer_item_len_;
 
     current_data_ = batch_raster_ptr;
@@ -196,12 +307,13 @@ uint32_t ThreadBatchDataLoader::data_batch_size() const
     return current_data_batch_size_;
 }
 
-bool ThreadBatchDataLoader::enqueue(std::function<void()> task)
+bool ThreadBatchDataLoader::enqueue(std::function<void()> task, uint32_t index)
 {
     if (num_workers_ > 0)
     {
         auto future = thread_pool_.enqueue(task);
         tasks_.emplace_back(std::move(future));
+        indices_.emplace_back(index);
         return true;
     }
     return false;

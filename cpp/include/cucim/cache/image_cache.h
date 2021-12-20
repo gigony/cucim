@@ -43,7 +43,10 @@ struct EXPORT_VISIBLE ImageCacheKey
 
 struct EXPORT_VISIBLE ImageCacheValue
 {
-    ImageCacheValue(void* data, uint64_t size, void* user_obj = nullptr);
+    ImageCacheValue(void* data,
+                    uint64_t size,
+                    void* user_obj = nullptr,
+                    const cucim::io::DeviceType device_type = cucim::io::DeviceType::kCPU);
     virtual ~ImageCacheValue(){};
 
     operator bool() const;
@@ -51,6 +54,7 @@ struct EXPORT_VISIBLE ImageCacheValue
     void* data = nullptr;
     uint64_t size = 0;
     void* user_obj = nullptr;
+    cucim::io::DeviceType device_type = cucim::io::DeviceType::kCPU;
 };
 
 /**
@@ -63,11 +67,14 @@ struct EXPORT_VISIBLE ImageCacheValue
 class EXPORT_VISIBLE ImageCache : public std::enable_shared_from_this<ImageCache>
 {
 public:
-    ImageCache(const ImageCacheConfig& config, CacheType type = CacheType::kNoCache);
+    ImageCache(const ImageCacheConfig& config,
+               CacheType type = CacheType::kNoCache,
+               const cucim::io::DeviceType device_type = cucim::io::DeviceType::kCPU);
     virtual ~ImageCache(){};
 
     virtual CacheType type() const;
     virtual const char* type_str() const;
+    virtual cucim::io::DeviceType device_type() const;
     virtual ImageCacheConfig& config();
     virtual ImageCacheConfig get_config() const;
 
@@ -79,7 +86,8 @@ public:
      * @return std::shared_ptr<ImageCacheKey> A shared pointer containing %ImageCacheKey.
      */
     virtual std::shared_ptr<ImageCacheKey> create_key(uint64_t file_hash, uint64_t index) = 0;
-    virtual std::shared_ptr<ImageCacheValue> create_value(void* data, uint64_t size) = 0;
+    virtual std::shared_ptr<ImageCacheValue> create_value(
+        void* data, uint64_t size, const cucim::io::DeviceType device_type = cucim::io::DeviceType::kCPU) = 0;
 
     virtual void* allocate(std::size_t n) = 0;
 
@@ -128,6 +136,7 @@ public:
 
 protected:
     CacheType type_ = CacheType::kNoCache;
+    cucim::io::DeviceType device_type_ = cucim::io::DeviceType::kCPU;
     ImageCacheConfig config_;
 };
 
