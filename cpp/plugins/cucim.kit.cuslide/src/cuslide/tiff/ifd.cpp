@@ -270,7 +270,8 @@ bool IFD::read(const TIFF* tiff,
                 maximum_tile_count = tile_across_count * tile_down_count * batch_size;
 
                 // Create NvJpegProcessor
-                auto nvjpeg_processor = std::make_unique<cuslide::loader::NvJpegProcessor>(maximum_tile_count);
+                auto nvjpeg_processor =
+                    std::make_unique<cuslide::loader::NvJpegProcessor>(batch_size, maximum_tile_count);
 
                 // Update prefetch_factor
                 prefetch_factor = nvjpeg_processor->preferred_loader_prefetch_factor();

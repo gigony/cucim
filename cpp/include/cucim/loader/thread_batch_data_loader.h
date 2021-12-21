@@ -90,7 +90,6 @@ private:
     size_t buffer_size_ = 0;
     std::vector<uint8_t*> raster_data_;
     std::deque<std::future<void>> tasks_;
-    std::deque<uint32_t> indices_;
     // NOTE: the order is important ('thread_pool_' depends on 'raster_data_' and 'tasks_')
     cucim::concurrent::ThreadPool thread_pool_;
 

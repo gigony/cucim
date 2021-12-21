@@ -28,12 +28,14 @@ namespace cucim::loader
 class EXPORT_VISIBLE BatchDataProcessor
 {
 public:
-    BatchDataProcessor();
+    BatchDataProcessor(uint32_t batch_size);
     virtual ~BatchDataProcessor();
 
-private:
-    uint32_t batch_size_ = 1;
+    void add_index(uint32_t index);
+    uint32_t remove_front_index();
 
+protected:
+    uint32_t batch_size_ = 1;
     std::deque<uint32_t> indices_;
 };
 

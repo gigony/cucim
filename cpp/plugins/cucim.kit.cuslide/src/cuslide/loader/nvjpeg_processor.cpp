@@ -23,7 +23,8 @@
 namespace cuslide::loader
 {
 
-NvJpegProcessor::NvJpegProcessor(uint32_t maximum_tile_count) : cucim::loader::BatchDataProcessor()
+NvJpegProcessor::NvJpegProcessor(uint32_t batch_size, uint32_t maximum_tile_count)
+    : cucim::loader::BatchDataProcessor(batch_size)
 {
     if (maximum_tile_count > 1)
     {
@@ -56,7 +57,7 @@ NvJpegProcessor::NvJpegProcessor(uint32_t maximum_tile_count) : cucim::loader::B
         cache_config.type = cucim::cache::CacheType::kPerProcess;
         cache_config.memory_capacity = 1024 * 1024; // 1TB: set to fairly large memory so that memory_capacity is not a
                                                     // limiter.
-        cache_config.capacity = cuda_batch_size; // limit the number of cache item to cuda_batch_size
+        cache_config.capacity = cuda_batch_size * 2; // limit the number of cache item to cuda_batch_size * 2
         cuda_image_cache_ =
             std::move(cucim::cache::ImageCacheManager::create_cache(cache_config, cucim::io::DeviceType::kCUDA));
     }

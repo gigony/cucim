@@ -25,7 +25,7 @@
 namespace cucim::loader
 {
 
-BatchDataProcessor::BatchDataProcessor()
+BatchDataProcessor::BatchDataProcessor(uint32_t batch_size) : batch_size_(batch_size)
 {
 }
 
@@ -33,4 +33,16 @@ BatchDataProcessor::~BatchDataProcessor()
 {
 }
 
+
+void BatchDataProcessor::add_index(uint32_t index)
+{
+    indices_.emplace_back(index);
+}
+
+uint32_t BatchDataProcessor::remove_front_index()
+{
+    uint32_t index = indices_.front();
+    indices_.pop_front();
+    return index;
+}
 }

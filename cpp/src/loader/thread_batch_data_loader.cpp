@@ -164,6 +164,11 @@ uint32_t ThreadBatchDataLoader::request(uint32_t load_size)
         // Append the number of added tasks to the batch count list.
         batch_item_counts_.emplace_back(tasks_.size() - last_item_count);
     }
+
+    if (batch_data_processor_)
+    {
+        batch_data_processor_ = nullptr; // TO WORK
+    }
     return num_items_to_request;
 }
 
@@ -184,9 +189,11 @@ uint32_t ThreadBatchDataLoader::wait_batch()
             auto& future = tasks_.front();
             future.wait();
             tasks_.pop_front();
-            uint32_t index = indices_.front();
-            indices_.pop_front();
-            fmt::print("  index: {}\n", index);
+            if (batch_data_processor_)
+            {
+                uint32_t index = batch_data_processor_->remove_front_index();
+                fmt::print("  index: {}\n", index);
+            }
         }
         batch_item_counts_.pop_front();
         num_items_waited += batch_item_count;
@@ -269,7 +276,10 @@ bool ThreadBatchDataLoader::enqueue(std::function<void()> task, uint32_t index)
     {
         auto future = thread_pool_.enqueue(task);
         tasks_.emplace_back(std::move(future));
-        indices_.emplace_back(index);
+        if (batch_data_processor_)
+        {
+            batch_data_processor_->add_index(index);
+        }
         return true;
     }
     return false;

@@ -35,15 +35,14 @@ namespace cuslide::loader
 class NvJpegProcessor : public cucim::loader::BatchDataProcessor
 {
 public:
-    NvJpegProcessor(uint32_t maximum_tile_count);
+    NvJpegProcessor(uint32_t batch_size, uint32_t maximum_tile_count);
     ~NvJpegProcessor();
 
     uint32_t preferred_loader_prefetch_factor();
 
 private:
     uint32_t preferred_loader_prefetch_factor_ = 2;
-    uint32_t batch_size_ = 1;
-    std::deque<uint32_t> indices_;
+    uint32_t cuda_batch_size_ = 1;
 
     std::condition_variable cuda_batch_cond_;
     std::unique_ptr<cucim::cache::ImageCache> cuda_image_cache_;
