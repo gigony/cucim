@@ -168,6 +168,8 @@ add_library(${CUCIM_PLUGIN_NAME}
     src/cuslide/jpeg2k/color_table.h
     src/cuslide/jpeg2k/libopenjpeg.cpp
     src/cuslide/jpeg2k/libopenjpeg.h
+    src/cuslide/loader/nvjpeg_processor.cpp
+    src/cuslide/loader/nvjpeg_processor.h
     ${deps-libopenjpeg_SOURCE_DIR}/src/bin/common/color.c  # for color_sycc_to_rgb() and color_apply_icc_profile()
     src/cuslide/lzw/lzw.cpp
     src/cuslide/lzw/lzw.h

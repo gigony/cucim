@@ -20,17 +20,13 @@
 #include "cucim/macros/api_header.h"
 
 #include <cstdint>
-#include <functional>
 #include <memory>
-#include <optional>
 #include <vector>
 #include <deque>
-#include "cucim/cache/image_cache_manager.h"
+
 #include "cucim/concurrent/threadpool.h"
 #include "cucim/io/device.h"
-
-// Forward declaration
-typedef struct CUstream_st* cudaStream_t;
+#include "cucim/loader/batch_data_processor.h"
 
 namespace cucim::loader
 {
@@ -41,8 +37,8 @@ public:
     using LoadFunc = std::function<void(ThreadBatchDataLoader* loader_ptr, uint64_t location_index)>;
 
     ThreadBatchDataLoader(LoadFunc load_func,
+                          std::unique_ptr<BatchDataProcessor> batch_data_processor,
                           cucim::io::Device out_device,
-                          uint32_t maximum_tile_count,
                           std::unique_ptr<std::vector<int64_t>> location,
                           std::unique_ptr<std::vector<int64_t>> image_size,
                           uint64_t location_len,
@@ -54,8 +50,6 @@ public:
     ~ThreadBatchDataLoader();
 
     operator bool() const;
-
-    void init_cuda_config(uint32_t maximum_tile_count);
 
     uint8_t* raster_pointer(const uint64_t location_index) const;
     uint32_t request(uint32_t load_size = 0);
@@ -85,17 +79,16 @@ private:
     std::unique_ptr<std::vector<int64_t>> image_size_ = nullptr;
     uint64_t location_len_ = 0;
     size_t one_rester_size_ = 0;
-    uint32_t batch_size_ = 0;
-    uint32_t prefetch_factor_ = 0;
+    uint32_t batch_size_ = 1;
+    uint32_t prefetch_factor_ = 2;
     uint32_t num_workers_ = 0;
 
-    uint32_t cuda_batch_size_ = 1;
-    std::unique_ptr<cucim::cache::ImageCache> cuda_image_cache_;
+    // For nvjpeg
+    std::unique_ptr<BatchDataProcessor> batch_data_processor_;
 
     size_t buffer_item_len_ = 0;
     size_t buffer_size_ = 0;
     std::vector<uint8_t*> raster_data_;
-    std::vector<cudaStream_t> streams_;
     std::deque<std::future<void>> tasks_;
     std::deque<uint32_t> indices_;
     // NOTE: the order is important ('thread_pool_' depends on 'raster_data_' and 'tasks_')

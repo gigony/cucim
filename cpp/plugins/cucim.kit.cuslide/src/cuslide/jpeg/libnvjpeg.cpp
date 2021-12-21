@@ -15,16 +15,6 @@
  * limitations under the License.
  */
 
-/**
- * Code below is derived from the libjpeg-turbo's example code (tjexample.c) which is under three compatible
- * BSD-style open source licenses
- * - The IJG (Independent JPEG Group) License
- * - The Modified (3-clause) BSD License
- * - The zlib License
- * Please see LICENSE-3rdparty.md for the detail.
- * (https://github.com/libjpeg-turbo/libjpeg-turbo/blob/00607ec260efa4cfe10f9b36d6e3d3590ae92d79/tjexample.c)
- */
-
 #include "libnvjpeg.h"
 
 #include <cstring>

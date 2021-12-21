@@ -38,6 +38,7 @@
 #include "cuslide/deflate/deflate.h"
 #include "cuslide/jpeg/libjpeg_turbo.h"
 #include "cuslide/jpeg2k/libopenjpeg.h"
+#include "cuslide/loader/nvjpeg_processor.h"
 #include "cuslide/lzw/lzw.h"
 #include "cuslide/raw/raw.h"
 #include "tiff.h"
@@ -220,8 +221,6 @@ bool IFD::read(const TIFF* tiff,
         raster_size *= batch_size;
 
         const IFD* ifd = this;
-        const uint32_t load_size =
-            std::min(static_cast<uint64_t>(batch_size) * (1 + request->prefetch_factor), location_len);
 
         if (location_len > 1 || batch_size > 1 || num_workers > 0)
         {
@@ -250,6 +249,8 @@ bool IFD::read(const TIFF* tiff,
 
             uint32_t maximum_tile_count = 0;
 
+            std::unique_ptr<cucim::loader::BatchDataProcessor> batch_processor;
+
             // Set raster_type to CUDA because loader will handle this with nvjpeg
             if (out_device.type() == cucim::io::DeviceType::kCUDA)
             {
@@ -265,13 +266,25 @@ bool IFD::read(const TIFF* tiff,
                                                     static_cast<uint64_t>(h) + (ifd->tile_height_ - 1)) /
                                                ifd->tile_height_ +
                                            1;
-                // The maximal number of possible tiles to load for the given image batch
+                // The maximal number of possible tiles (# of tasks) to load for the given image batch
                 maximum_tile_count = tile_across_count * tile_down_count * batch_size;
+
+                // Create NvJpegProcessor
+                auto nvjpeg_processor = std::make_unique<cuslide::loader::NvJpegProcessor>(maximum_tile_count);
+
+                // Update prefetch_factor
+                prefetch_factor = nvjpeg_processor->preferred_loader_prefetch_factor();
+
+                batch_processor = std::move(nvjpeg_processor);
             }
 
             auto loader = std::make_unique<cucim::loader::ThreadBatchDataLoader>(
-                load_func, out_device, maximum_tile_count, std::move(request_location), std::move(request_size),
+                load_func, std::move(batch_processor), out_device, std::move(request_location), std::move(request_size),
                 location_len, one_raster_size, batch_size, prefetch_factor, num_workers);
+
+            const uint32_t load_size =
+                std::min(static_cast<uint64_t>(batch_size) * (1 + request->prefetch_factor), location_len);
+
             loader->request(load_size);
 
             // If it reads entire image with multi threads (using loader), fetch the next item.

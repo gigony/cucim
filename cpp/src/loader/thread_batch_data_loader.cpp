@@ -29,8 +29,8 @@ namespace cucim::loader
 {
 
 ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
+                                             std::unique_ptr<BatchDataProcessor> batch_data_processor,
                                              cucim::io::Device out_device,
-                                             uint32_t maximum_tile_count,
                                              std::unique_ptr<std::vector<int64_t>> location,
                                              std::unique_ptr<std::vector<int64_t>> image_size,
                                              uint64_t location_len,
@@ -47,6 +47,7 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
       batch_size_(batch_size),
       prefetch_factor_(prefetch_factor),
       num_workers_(num_workers),
+      batch_data_processor_(std::move(batch_data_processor)),
       buffer_size_(one_raster_size * batch_size),
       thread_pool_(num_workers),
       queued_item_count_(0),
@@ -56,9 +57,6 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
       current_data_(nullptr),
       current_data_batch_size_(0)
 {
-    // Update cuda_batch_size_, prefetch_factor_, and cuda_image_cache_ if needed
-    init_cuda_config(maximum_tile_count);
-
     buffer_item_len_ = std::min(static_cast<uint64_t>(location_len_), static_cast<uint64_t>(1 + prefetch_factor_)),
 
     raster_data_.reserve(buffer_item_len_);
@@ -126,48 +124,6 @@ ThreadBatchDataLoader::~ThreadBatchDataLoader()
 ThreadBatchDataLoader::operator bool() const
 {
     return (num_workers_ > 0);
-}
-
-void ThreadBatchDataLoader::init_cuda_config(uint32_t maximum_tile_count)
-{
-    if (maximum_tile_count > 1)
-    {
-        // Calculate nearlest power of 2 that is equal or larger than the given number.
-        // (Test with https://godbolt.org/z/n7qhPYzfP)
-        int next_candidate = maximum_tile_count & (maximum_tile_count - 1);
-        if (next_candidate > 0)
-        {
-            maximum_tile_count <<= 1;
-            while (true)
-            {
-                next_candidate = maximum_tile_count & (maximum_tile_count - 1);
-                if (next_candidate == 0)
-                {
-                    break;
-                }
-                maximum_tile_count = next_candidate;
-            }
-        }
-        cuda_batch_size_ = maximum_tile_count;
-
-        // Update prefetch_factor
-        // (We can decode/cache tiles at least two times of the number of tiles needed for nvjpeg)
-        // E.g., (128 - 1) / 32 + 1 ~= 4 => 8 for cuda_batch_size(=128) and batch_size(=32)
-        prefetch_factor_ = ((cuda_batch_size_ - 1) / batch_size_ + 1) * 2;
-
-        // Create cuda image cache
-        cucim::cache::ImageCacheConfig cache_config{};
-
-        cache_config.type = cucim::cache::CacheType::kPerProcess;
-        cache_config.memory_capacity = 1024 * 1024; // 1TB: Set to fairly large memory so that memory_capacity is not a
-                                                    // limiter.
-        cache_config.capacity = cuda_batch_size_; // TO WORK
-
-        // TO WORK
-
-
-        cuda_image_cache_ = std::move(cucim::cache::ImageCacheManager::create_cache(cache_config));
-    }
 }
 
 uint8_t* ThreadBatchDataLoader::raster_pointer(const uint64_t location_index) const
