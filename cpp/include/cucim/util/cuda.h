@@ -17,7 +17,10 @@
 #ifndef CUCIM_UTIL_CUDA_H
 #define CUCIM_UTIL_CUDA_H
 
-#include <cuda_runtime.h>
+
+#if CUCIM_SUPPORT_CUDA
+#    include <cuda_runtime.h>
+#endif
 
 #define CUDA_TRY(stmt)                                                                                                 \
     {                                                                                                                  \

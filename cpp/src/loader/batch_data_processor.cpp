@@ -48,14 +48,29 @@ TileInfo BatchDataProcessor::remove_front_tile()
     return tile;
 }
 
-uint32_t BatchDataProcessor::request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_patches)
+uint32_t BatchDataProcessor::request(std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches)
 {
     (void)batch_item_counts;
     (void)num_remaining_patches;
     return 0;
 }
 
-void BatchDataProcessor::wait_for_processing()
+uint32_t BatchDataProcessor::wait_batch(uint32_t index,
+                                        std::deque<uint32_t>& batch_item_counts,
+                                        uint32_t num_remaining_patches)
+{
+    (void)index;
+    (void)batch_item_counts;
+    (void)num_remaining_patches;
+    return 0;
+}
+
+std::shared_ptr<cucim::cache::ImageCacheValue> BatchDataProcessor::wait_for_processing(uint32_t)
+{
+    return std::shared_ptr<cucim::cache::ImageCacheValue>();
+}
+
+void BatchDataProcessor::shutdown()
 {
 }
 }

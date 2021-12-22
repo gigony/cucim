@@ -24,6 +24,7 @@
 #include <vector>
 #include <deque>
 
+#include "cucim/cache/image_cache.h"
 #include "cucim/concurrent/threadpool.h"
 #include "cucim/io/device.h"
 #include "cucim/loader/batch_data_processor.h"
@@ -64,7 +65,7 @@ public:
     uint8_t* next_data();
 
     BatchDataProcessor* batch_data_processor();
-    void wait_for_processing();
+    std::shared_ptr<cucim::cache::ImageCacheValue> wait_for_processing(uint32_t index);
 
     uint64_t size() const;
     uint32_t batch_size() const;
@@ -77,6 +78,7 @@ public:
     bool enqueue(std::function<void()> task, const TileInfo& tile);
 
 private:
+    bool stopped_ = false;
     LoadFunc load_func_;
     cucim::io::Device out_device_;
     std::unique_ptr<std::vector<int64_t>> location_ = nullptr;

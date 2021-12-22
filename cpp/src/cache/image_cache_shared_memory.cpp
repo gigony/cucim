@@ -375,6 +375,36 @@ bool SharedMemoryImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::sh
     return succeed;
 }
 
+void SharedMemoryImageCache::remove_front()
+{
+    while (true)
+    {
+        uint32_t head = (*list_head_).load(std::memory_order_relaxed);
+        uint32_t tail = (*list_tail_).load(std::memory_order_relaxed);
+        if (head != tail)
+        {
+            // Remove front by increasing head
+            if ((*list_head_)
+                    .compare_exchange_weak(
+                        head, (head + 1) % (*list_capacity_), std::memory_order_release, std::memory_order_relaxed))
+            {
+                auto& head_item = (*list_)[head];
+                if (head_item) // it is possible that head_item is nullptr
+                {
+                    (*size_nbytes_).fetch_sub(head_item->value->size, std::memory_order_relaxed);
+                    hashmap_->erase(head_item->key);
+                    (*list_)[head].reset(); // decrease refcount
+                    break;
+                }
+            }
+        }
+        else
+        {
+            break; // already empty
+        }
+    }
+}
+
 uint32_t SharedMemoryImageCache::size() const
 {
     uint32_t head = list_head_->load(std::memory_order_relaxed);
@@ -521,36 +551,6 @@ bool SharedMemoryImageCache::is_memory_full(uint64_t additional_size) const
     else
     {
         return false;
-    }
-}
-
-void SharedMemoryImageCache::remove_front()
-{
-    while (true)
-    {
-        uint32_t head = (*list_head_).load(std::memory_order_relaxed);
-        uint32_t tail = (*list_tail_).load(std::memory_order_relaxed);
-        if (head != tail)
-        {
-            // Remove front by increasing head
-            if ((*list_head_)
-                    .compare_exchange_weak(
-                        head, (head + 1) % (*list_capacity_), std::memory_order_release, std::memory_order_relaxed))
-            {
-                auto& head_item = (*list_)[head];
-                if (head_item) // it is possible that head_item is nullptr
-                {
-                    (*size_nbytes_).fetch_sub(head_item->value->size, std::memory_order_relaxed);
-                    hashmap_->erase(head_item->key);
-                    (*list_)[head].reset(); // decrease refcount
-                    break;
-                }
-            }
-        }
-        else
-        {
-            break; // already empty
-        }
     }
 }
 

@@ -22,6 +22,8 @@
 #include <cstdint>
 #include <deque>
 
+#include <cucim/cache/image_cache.h>
+
 #include "tile_info.h"
 
 namespace cucim::loader
@@ -36,9 +38,12 @@ public:
     void add_tile(const TileInfo& tile);
     TileInfo remove_front_tile();
 
-    virtual uint32_t request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_patches);
+    virtual uint32_t request(std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches);
+    virtual uint32_t wait_batch(uint32_t index, std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches);
 
-    virtual void wait_for_processing();
+    virtual std::shared_ptr<cucim::cache::ImageCacheValue> wait_for_processing(uint32_t);
+
+    virtual void shutdown();
 
 protected:
     uint32_t batch_size_ = 1;

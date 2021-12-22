@@ -71,7 +71,9 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
         case io::DeviceType::kCUDA: {
             cudaError_t cuda_status;
             void* image_data_ptr = nullptr;
-            CUDA_TRY(cudaMalloc(&image_data_ptr, buffer_size_));
+            CUDA_ERROR(cudaMalloc(&image_data_ptr, buffer_size_));
+            // fmt::print(stderr, "cudaMalloc: i:{}, {}  size: {}\n", i, (uint64_t)image_data_ptr, buffer_size_);
+            raster_data_.emplace_back(static_cast<uint8_t*>(image_data_ptr));
             if (cuda_status)
             {
                 fmt::print(stderr, "[Error] Cannot allocate GPU memory!\n");
@@ -105,11 +107,7 @@ ThreadBatchDataLoader::~ThreadBatchDataLoader()
             if (raster_ptr)
             {
                 cuda_status = cudaSuccess;
-                // CUDA_TRY(cudaFree(raster_ptr));
-            }
-            if (cuda_status)
-            {
-                fmt::print(stderr, "[Error] Cannot free GPU memory!");
+                CUDA_ERROR(cudaFree(raster_ptr));
             }
             break;
         case io::DeviceType::kPinned:
@@ -119,6 +117,11 @@ ThreadBatchDataLoader::~ThreadBatchDataLoader()
             break;
         }
         raster_ptr = nullptr;
+    }
+    if (batch_data_processor_)
+    {
+        stopped_ = true;
+        batch_data_processor_->shutdown();
     }
 }
 
@@ -195,6 +198,8 @@ uint32_t ThreadBatchDataLoader::wait_batch()
             {
                 TileInfo tile = batch_data_processor_->remove_front_tile();
                 fmt::print("  Finished patch: {} index: {}\n", tile.location_index, tile.index);
+                uint32_t num_remaining_patches = static_cast<uint32_t>(location_len_ - queued_item_count_);
+                batch_data_processor_->wait_batch(i, batch_item_counts_, num_remaining_patches);
             }
         }
         batch_item_counts_.pop_front();
@@ -228,7 +233,24 @@ uint8_t* ThreadBatchDataLoader::next_data()
 
     uint8_t* batch_raster_ptr = raster_data_[buffer_item_head_index_];
 
-    raster_data_[buffer_item_head_index_] = static_cast<uint8_t*>(cucim_malloc(buffer_size_));
+    cucim::io::DeviceType device_type = out_device_.type();
+    switch (device_type)
+    {
+    case io::DeviceType::kCPU:
+        raster_data_[buffer_item_head_index_] = static_cast<uint8_t*>(cucim_malloc(buffer_size_));
+        break;
+    case io::DeviceType::kCUDA: {
+        cudaError_t cuda_status;
+        CUDA_ERROR(cudaMalloc(&raster_data_[buffer_item_head_index_], buffer_size_));
+        break;
+    }
+    case io::DeviceType::kPinned:
+    case io::DeviceType::kCPUShared:
+    case io::DeviceType::kCUDAShared:
+        fmt::print(stderr, "Device type {} is not supported!\n", device_type);
+        break;
+    }
+
     buffer_item_head_index_ = (buffer_item_head_index_ + 1) % buffer_item_len_;
 
     current_data_ = batch_raster_ptr;
@@ -247,14 +269,14 @@ BatchDataProcessor* ThreadBatchDataLoader::batch_data_processor()
     return batch_data_processor_.get();
 }
 
-void ThreadBatchDataLoader::wait_for_processing()
+std::shared_ptr<cucim::cache::ImageCacheValue> ThreadBatchDataLoader::wait_for_processing(uint32_t index)
 {
-    if (batch_data_processor_ == nullptr)
+    if (batch_data_processor_ == nullptr || stopped_)
     {
-        return;
+        return std::shared_ptr<cucim::cache::ImageCacheValue>();
     }
 
-    batch_data_processor_->wait_for_processing();
+    return batch_data_processor_->wait_for_processing(index);
 }
 
 uint64_t ThreadBatchDataLoader::size() const

@@ -20,15 +20,17 @@
 #include <vector>
 
 #include <cucim/cache/image_cache_manager.h>
+#include <cucim/codec/hash_function.h>
 #include <cucim/io/device.h>
 #include <cucim/util/cuda.h>
 #include <fmt/format.h>
 
 #define ALIGN_UP(x, align_to) (((uint64_t)(x) + ((uint64_t)(align_to)-1)) & ~((uint64_t)(align_to)-1))
 #define ALIGN_DOWN(x, align_to) ((uint64_t)(x) & ~((uint64_t)(align_to)-1))
-
 namespace cuslide::loader
 {
+
+constexpr uint32_t MAX_CUDA_BATCH_SIZE = 1024;
 
 NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
                                  const cuslide::tiff::IFD* ifd,
@@ -57,7 +59,7 @@ NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
             }
         }
 
-        uint32_t cuda_batch_size = maximum_tile_count;
+        uint32_t cuda_batch_size = std::min(maximum_tile_count, MAX_CUDA_BATCH_SIZE);
 
         // Update prefetch_factor
         // (We can decode/cache tiles at least two times of the number of tiles for batch decoding)
@@ -109,6 +111,7 @@ NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
         file_start_offset_ = 0;
         tile_width_bytes_ = ifd->tile_width() * ifd->pixel_size_nbytes();
         tile_height_ = ifd->tile_height();
+        tile_raster_nbytes_ = tile_width_bytes_ * tile_height_;
 
         struct stat sb;
         fstat(file_handle_->fd, &sb);
@@ -140,7 +143,7 @@ NvJpegProcessor::~NvJpegProcessor()
     }
 }
 
-uint32_t NvJpegProcessor::request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_patches)
+uint32_t NvJpegProcessor::request(std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches)
 {
     (void)batch_item_counts;
     (void)num_remaining_patches;
@@ -237,6 +240,8 @@ uint32_t NvJpegProcessor::request(std::deque<uint32_t> batch_item_counts, uint32
             raw_cuda_inputs_len_.push_back(tile_to_request[0].size);
             CUDA_ERROR(cudaMallocPitch(
                 &raw_cuda_outputs_[i].channel[0], &raw_cuda_outputs_[i].pitch[0], tile_width_bytes_, tile_height_));
+            // fmt::print(stderr, "  Allocated cuda memory pitch: {} tile_width_bytes: {}\n",
+            //            raw_cuda_outputs_[i].pitch[0], tile_width_bytes_);
         }
     }
 
@@ -266,73 +271,101 @@ uint32_t NvJpegProcessor::request(std::deque<uint32_t> batch_item_counts, uint32
     // }
     fmt::print(" # NVJPEG Batch Processing: {}\n", request_count);
 
-    // Add to cache
 
+    // Remove previous batch (keep last 'cuda_batch_size_' items) before adding to cuda_image_cache_
+    // TODO: Utilize the removed tiles if next batch uses them.
+    while (cuda_image_cache_->size() > cuda_batch_size_)
+    {
+        cuda_image_cache_->remove_front();
+    }
+
+    // Add to cache
     for (uint32_t i = 0; i < request_count; ++i)
     {
         auto& added_tile = tile_to_request[i];
 
         uint32_t index = added_tile.index;
-        // uint8_t* tile_data;
         uint64_t index_hash = cucim::codec::splitmix64(index);
 
         auto key = cuda_image_cache_->create_key(0, index);
 
         cuda_image_cache_->lock(index_hash);
 
-        raw_cuda_outputs_[i].channel[0]
+        uint8_t* tile_data = static_cast<uint8_t*>(cuda_image_cache_->allocate(tile_raster_nbytes_));
+        cudaError_t cuda_status;
 
-            auto value = cuda_image_cache_.create_value(tile_data, tile_raster_nbytes);
-        image_cache.insert(key, value);
-        image_cache.unlock(index_hash);
-
-
-        auto value = cuda_image_cache_->find(index_hash);
-        if (value)
+        CUDA_TRY(cudaMemcpy2D(tile_data, tile_width_bytes_, raw_cuda_outputs_[i].channel[0],
+                              raw_cuda_outputs_[i].pitch[0], tile_width_bytes_, tile_height_, cudaMemcpyDeviceToDevice));
+        if (cuda_status)
         {
-            image_cache.unlock(index);
-            // tile_data = static_cast<uint8_t*>(value->data);
+            throw std::runtime_error("Error during cudaMemcpy2D!");
         }
-        else
-        {
-            tile_to_request.push_back(index);
-            value = cuda_image_cache_.create_value(tile_data, tile_raster_nbytes);
-            image_cache.insert(key, value);
-            image_cache.unlock(index_hash);
-        }
+
+        raw_cuda_outputs_[i].channel[0];
+        const size_t tile_raster_nbytes = raw_cuda_inputs_len_[i];
+
+        auto value = cuda_image_cache_->create_value(tile_data, tile_raster_nbytes, cucim::io::DeviceType::kCUDA);
+        cuda_image_cache_->insert(key, value);
+        cuda_image_cache_->unlock(index_hash);
     }
+
+    ++processed_cuda_batch_count_;
+
+    cuda_batch_cond_.notify_all();
+    return 0;
+
+    // // uint8_t* tile_data;
+    // auto key = cuda_image_cache_->create_key(0, index);
+    // cuda_image_cache_->lock(index);
+
+    // auto value = cuda_image_cache_->find(key);
+    // if (value)
+    // {
+    //     image_cache.unlock(index);
+    //     // tile_data = static_cast<uint8_t*>(value->data);
+    // }
+    // else
+    // {
+    //     tile_to_request.push_back(index);
+    //     value = cuda_image_cache_.create_value(tile_data, tile_raster_nbytes);
+    //                 image_cache.insert(key, value);
+    //                 image_cache.unlock(index_hash);
+    // }
+    // }
 }
 
-
-++processed_cuda_batch_count_;
-
-cuda_batch_cond_.notify_all();
-return 0;
-
-// // uint8_t* tile_data;
-// auto key = cuda_image_cache_->create_key(0, index);
-// cuda_image_cache_->lock(index);
-
-// auto value = cuda_image_cache_->find(key);
-// if (value)
-// {
-//     image_cache.unlock(index);
-//     // tile_data = static_cast<uint8_t*>(value->data);
-// }
-// else
-// {
-//     tile_to_request.push_back(index);
-//     value = cuda_image_cache_.create_value(tile_data, tile_raster_nbytes);
-//                 image_cache.insert(key, value);
-//                 image_cache.unlock(index_hash);
-// }
-// }
-}
-
-void NvJpegProcessor::wait_for_processing()
+uint32_t NvJpegProcessor::wait_batch(uint32_t index, std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches)
 {
-    std::unique_lock<std::mutex> lock(cuda_batch_mutex_);
-    cuda_batch_cond_.wait(lock, [this] { return processed_cuda_batch_count_ > 0; });
+    if (index % cuda_batch_size_ == 0)
+    {
+        request(batch_item_counts, num_remaining_patches);
+    }
+    return 0;
+}
+
+std::shared_ptr<cucim::cache::ImageCacheValue> NvJpegProcessor::wait_for_processing(uint32_t index)
+{
+    uint64_t index_hash = cucim::codec::splitmix64(index);
+    std::mutex* m = reinterpret_cast<std::mutex*>(cuda_image_cache_->mutex(index_hash));
+    std::shared_ptr<cucim::cache::ImageCacheValue> value;
+    std::unique_lock<std::mutex> lock(*m);
+    cuda_batch_cond_.wait(lock, [this, index, &value] {
+        if (stopped_)
+        {
+            value = std::shared_ptr<cucim::cache::ImageCacheValue>();
+            return true;
+        }
+        auto key = cuda_image_cache_->create_key(0, index);
+        value = cuda_image_cache_->find(key);
+        return static_cast<bool>(value);
+    });
+    return value;
+}
+
+void NvJpegProcessor::shutdown()
+{
+    stopped_ = true;
+    cuda_batch_cond_.notify_all();
 }
 
 uint32_t NvJpegProcessor::preferred_loader_prefetch_factor()

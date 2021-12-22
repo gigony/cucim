@@ -96,6 +96,7 @@ public:
     virtual void* mutex(uint64_t index) = 0;
 
     virtual bool insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value) = 0;
+    virtual void remove_front() = 0;
 
     virtual uint32_t size() const = 0;
     virtual uint64_t memory_size() const = 0;

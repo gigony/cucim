@@ -270,13 +270,9 @@ CuImage::~CuImage()
                 if (image_data_->loader)
                 {
                     cuda_status = cudaSuccess;
-                    // CUDA_TRY(cudaFree(image_data_->container.data));
+                    CUDA_ERROR(cudaFree(image_data_->container.data));
                 }
                 image_data_->container.data = nullptr;
-                if (cuda_status)
-                {
-                    fmt::print(stderr, "[Error] Cannot free GPU memory!\n");
-                }
                 break;
             case io::DeviceType::kPinned:
             case io::DeviceType::kCPUShared:
@@ -1365,11 +1361,7 @@ void CuImageIterator<DataType>::increase_index_()
                 if (*image_data_ptr)
                 {
                     cuda_status = cudaSuccess;
-                    // CUDA_TRY(cudaFree(*image_data_ptr));
-                }
-                if (cuda_status)
-                {
-                    fmt::print(stderr, "[Error] Cannot free GPU memory!\n");
+                    CUDA_ERROR(cudaFree(*image_data_ptr));
                 }
                 break;
             case io::DeviceType::kPinned:

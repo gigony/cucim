@@ -668,9 +668,19 @@ bool IFD::read_region_tiles(const TIFF* tiff,
 
                     if (loader && loader->batch_data_processor())
                     {
-                        loader->wait_for_processing();
-                        // fmt::print(stderr, "Wait done: {}\n",
-                        // std::hash<std::thread::id>{}(std::this_thread::get_id()));
+                        auto value = loader->wait_for_processing(index);
+                        if (!value) // if shutdown
+                        {
+                            return;
+                        }
+                        tile_data = static_cast<uint8_t*>(value->data);
+
+                        cudaError_t cuda_status;
+                        // fmt::print(stderr, "copy: index:{}, {}\n", index, (uint64_t)dest_start_ptr);
+                        CUDA_ERROR(cudaMemcpy2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y,
+                                                tile_data + nbytes_tile_index, nbytes_tw, nbytes_tile_pixel_size_x,
+                                                tile_pixel_offset_ey - tile_pixel_offset_sy + 1,
+                                                cudaMemcpyDeviceToDevice));
                     }
                     else
                     {
@@ -767,18 +777,18 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                     }
                     else
                     {
-                        // cudaError_t cuda_status;
-                        // CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y,
-                        // background_value,
-                        //                         nbytes_tile_pixel_size_x,
-                        //                         tile_pixel_offset_ey - tile_pixel_offset_sy + 1));
+                        cudaError_t cuda_status;
+                        CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y, background_value,
+                                                nbytes_tile_pixel_size_x,
+                                                tile_pixel_offset_ey - tile_pixel_offset_sy + 1));
                     }
                 }
             };
 
             if (loader && *loader)
             {
-                loader->enqueue(std::move(decode_func), cucim::loader::TileInfo{ location_index, index, tiledata_offset, tiledata_size });
+                loader->enqueue(std::move(decode_func),
+                                cucim::loader::TileInfo{ location_index, index, tiledata_offset, tiledata_size });
             }
             else
             {
@@ -995,9 +1005,74 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
 
                     if (loader && loader->batch_data_processor())
                     {
-                        loader->wait_for_processing();
-                        // fmt::print(stderr, "Wait done: {}\n",
-                        // std::hash<std::thread::id>{}(std::this_thread::get_id()));
+                        auto value = loader->wait_for_processing(index);
+                        if (!value) // if shutdown
+                        {
+                            return;
+                        }
+
+                        tile_data = static_cast<uint8_t*>(value->data);
+
+                        cudaError_t cuda_status;
+                        // fmt::print(stderr, "copy: index:{}, {}\n", index, (uint64_t)dest_start_ptr);
+                        if (copy_partial)
+                        {
+                            uint32_t fill_gap_x = nbytes_tile_pixel_size_x - fixed_nbytes_tile_pixel_size_x;
+                            // Fill original, then fill white for remaining
+                            if (fill_gap_x > 0)
+                            {
+                                CUDA_ERROR(cudaMemcpy2D(
+                                    dest_start_ptr + dest_pixel_index, dest_pixel_step_y, tile_data + nbytes_tile_index,
+                                    nbytes_tw, fixed_nbytes_tile_pixel_size_x,
+                                    fixed_tile_pixel_offset_ey - tile_pixel_offset_sy + 1, cudaMemcpyDeviceToDevice));
+                                CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index + fixed_nbytes_tile_pixel_size_x,
+                                                        dest_pixel_step_y, background_value, fill_gap_x,
+                                                        fixed_tile_pixel_offset_ey - tile_pixel_offset_sy + 1));
+
+                                dest_pixel_index +=
+                                    dest_pixel_step_y * (fixed_tile_pixel_offset_ey - tile_pixel_offset_sy + 1);
+                                // for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
+                                //      ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
+                                // {
+                                //     memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
+                                //            fixed_nbytes_tile_pixel_size_x);
+                                //     memset(dest_start_ptr + dest_pixel_index + fixed_nbytes_tile_pixel_size_x,
+                                //            background_value, fill_gap_x);
+                                // }
+                            }
+                            else
+                            {
+                                CUDA_ERROR(cudaMemcpy2D(
+                                    dest_start_ptr + dest_pixel_index, dest_pixel_step_y, tile_data + nbytes_tile_index,
+                                    nbytes_tw, fixed_nbytes_tile_pixel_size_x,
+                                    fixed_tile_pixel_offset_ey - tile_pixel_offset_sy + 1, cudaMemcpyDeviceToDevice));
+                                dest_pixel_index +=
+                                    dest_pixel_step_y * (fixed_tile_pixel_offset_ey - tile_pixel_offset_sy + 1);
+                                // for (uint32_t ty = tile_pixel_offset_sy; ty <= fixed_tile_pixel_offset_ey;
+                                //      ++ty, dest_pixel_index += dest_pixel_step_y, nbytes_tile_index += nbytes_tw)
+                                // {
+                                //     memcpy(dest_start_ptr + dest_pixel_index, tile_data + nbytes_tile_index,
+                                //            fixed_nbytes_tile_pixel_size_x);
+                                // }
+                            }
+
+                            CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y,
+                                                    background_value, nbytes_tile_pixel_size_x,
+                                                    tile_pixel_offset_ey - (fixed_tile_pixel_offset_ey + 1) + 1));
+                            // for (uint32_t ty = fixed_tile_pixel_offset_ey + 1; ty <= tile_pixel_offset_ey;
+                            //      ++ty, dest_pixel_index += dest_pixel_step_y)
+                            // {
+                            //     memset(dest_start_ptr + dest_pixel_index, background_value,
+                            //     nbytes_tile_pixel_size_x);
+                            // }
+                        }
+                        else
+                        {
+                            CUDA_ERROR(cudaMemcpy2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y,
+                                                    tile_data + nbytes_tile_index, nbytes_tw, nbytes_tile_pixel_size_x,
+                                                    tile_pixel_offset_ey - tile_pixel_offset_sy + 1,
+                                                    cudaMemcpyDeviceToDevice));
+                        }
                     }
                     else
                     {
@@ -1127,11 +1202,9 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     }
                     else
                     {
-                        // cudaError_t cuda_status;
-                        // CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y,
-                        // background_value,
-                        //                         nbytes_tile_pixel_size_x, tile_pixel_offset_ey -
-                        //                         tile_pixel_offset_sy));
+                        cudaError_t cuda_status;
+                        CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y, background_value,
+                                                nbytes_tile_pixel_size_x, tile_pixel_offset_ey - tile_pixel_offset_sy));
                     }
                 }
             };

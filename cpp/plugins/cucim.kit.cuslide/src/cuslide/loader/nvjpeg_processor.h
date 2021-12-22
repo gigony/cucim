@@ -27,7 +27,6 @@
 
 #include <nvjpeg.h>
 
-#include <cucim/cache/image_cache.h>
 #include <cucim/filesystem/cufile_driver.h>
 #include <cucim/filesystem/file_handle.h>
 #include <cucim/io/device.h>
@@ -51,13 +50,17 @@ public:
                     const uint32_t jpegtable_size);
     ~NvJpegProcessor();
 
-    uint32_t request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_patches) override;
+    uint32_t request(std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches) override;
+    uint32_t wait_batch(uint32_t index, std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches) override;
 
-    void wait_for_processing() override;
+    std::shared_ptr<cucim::cache::ImageCacheValue> wait_for_processing(uint32_t index) override;
+
+    void shutdown() override;
 
     uint32_t preferred_loader_prefetch_factor();
 
 private:
+    bool stopped_ = false;
     uint32_t preferred_loader_prefetch_factor_ = 2;
 
     CuCIMFileHandle* file_handle_ = nullptr;
@@ -66,6 +69,7 @@ private:
     size_t file_start_offset_ = 0;
     size_t tile_width_bytes_ = 0;
     size_t tile_height_ = 0;
+    size_t tile_raster_nbytes_ = 0;
 
     uint32_t cuda_batch_size_ = 1;
     int dev_ = 0;

@@ -57,6 +57,9 @@ bool EmptyImageCache::insert(std::shared_ptr<ImageCacheKey>&, std::shared_ptr<Im
     return true;
 }
 
+void EmptyImageCache::remove_front()
+{
+}
 
 uint32_t EmptyImageCache::size() const
 {

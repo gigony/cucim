@@ -44,6 +44,7 @@ public:
     void* mutex(uint64_t index) override;
 
     bool insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value) override;
+    void remove_front() override;
 
     uint32_t size() const override;
     uint64_t memory_size() const override;
