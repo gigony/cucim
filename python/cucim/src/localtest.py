@@ -57,6 +57,11 @@ with Timer("  Thread elapsed time (cuCIM)") as timer:
     # print(a)
     batch_iter = img.read_region(
         iter(start_loc_data), (patch_size, patch_size), batch_size=32, device="cuda", num_workers=16)  # device="cuda",
+    # d = next(batch_iter)
+    # e = next(batch_iter)
+    # next(batch_iter)
+    # next(batch_iter)
+    # next(batch_iter)
     c = 0
     for batch in batch_iter:
         c += 1

@@ -564,7 +564,7 @@ bool IFD::is_format_supported() const
 bool IFD::read_region_tiles(const TIFF* tiff,
                             const IFD* ifd,
                             const int64_t* location,
-                            const size_t location_index,
+                            const int64_t location_index,
                             const int64_t w,
                             const int64_t h,
                             void* raster,
@@ -767,10 +767,11 @@ bool IFD::read_region_tiles(const TIFF* tiff,
                     }
                     else
                     {
-                        cudaError_t cuda_status;
-                        CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y, background_value,
-                                                nbytes_tile_pixel_size_x,
-                                                tile_pixel_offset_ey - tile_pixel_offset_sy + 1));
+                        // cudaError_t cuda_status;
+                        // CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y,
+                        // background_value,
+                        //                         nbytes_tile_pixel_size_x,
+                        //                         tile_pixel_offset_ey - tile_pixel_offset_sy + 1));
                     }
                 }
             };
@@ -795,7 +796,7 @@ bool IFD::read_region_tiles(const TIFF* tiff,
 bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                                      const IFD* ifd,
                                      const int64_t* location,
-                                     const size_t location_index,
+                                     const int64_t location_index,
                                      const int64_t w,
                                      const int64_t h,
                                      void* raster,
@@ -1126,9 +1127,11 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
                     }
                     else
                     {
-                        cudaError_t cuda_status;
-                        CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y, background_value,
-                                                nbytes_tile_pixel_size_x, tile_pixel_offset_ey - tile_pixel_offset_sy));
+                        // cudaError_t cuda_status;
+                        // CUDA_ERROR(cudaMemset2D(dest_start_ptr + dest_pixel_index, dest_pixel_step_y,
+                        // background_value,
+                        //                         nbytes_tile_pixel_size_x, tile_pixel_offset_ey -
+                        //                         tile_pixel_offset_sy));
                     }
                 }
             };
@@ -1136,7 +1139,7 @@ bool IFD::read_region_tiles_boundary(const TIFF* tiff,
             if (loader && *loader)
             {
                 loader->enqueue(std::move(decode_func),
-                                cucim::loader::TileInfo{ location_index, static_cast<uint64_t>(index), tiledata_offset, tiledata_size });
+                                cucim::loader::TileInfo{ location_index, index, tiledata_offset, tiledata_size });
             }
             else
             {

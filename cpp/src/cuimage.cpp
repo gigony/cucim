@@ -269,7 +269,8 @@ CuImage::~CuImage()
                 cudaError_t cuda_status;
                 if (image_data_->loader)
                 {
-                    CUDA_TRY(cudaFree(image_data_->container.data));
+                    cuda_status = cudaSuccess;
+                    // CUDA_TRY(cudaFree(image_data_->container.data));
                 }
                 image_data_->container.data = nullptr;
                 if (cuda_status)
@@ -1363,7 +1364,8 @@ void CuImageIterator<DataType>::increase_index_()
                 cudaError_t cuda_status;
                 if (*image_data_ptr)
                 {
-                    CUDA_TRY(cudaFree(*image_data_ptr));
+                    cuda_status = cudaSuccess;
+                    // CUDA_TRY(cudaFree(*image_data_ptr));
                 }
                 if (cuda_status)
                 {

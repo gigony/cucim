@@ -51,7 +51,7 @@ public:
                     const uint32_t jpegtable_size);
     ~NvJpegProcessor();
 
-    uint32_t request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_items) override;
+    uint32_t request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_patches) override;
 
     void wait_for_processing() override;
 
@@ -79,8 +79,9 @@ private:
     std::mutex cuda_batch_mutex_;
     std::unique_ptr<cucim::cache::ImageCache> cuda_image_cache_;
     uint64_t processed_cuda_batch_count_ = 0;
+    cucim::loader::TileInfo fetch_after_{ -1, -1, 0, 0 };
 
-    std::queue<uint32_t> cache_tile_queue_;
+    std::deque<uint32_t> cache_tile_queue_;
     std::unordered_map<uint32_t, cucim::loader::TileInfo> cache_tile_map_;
 
     uint8_t* unaligned_host_ = nullptr;

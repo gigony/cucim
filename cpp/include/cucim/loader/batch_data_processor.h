@@ -36,7 +36,7 @@ public:
     void add_tile(const TileInfo& tile);
     TileInfo remove_front_tile();
 
-    virtual uint32_t request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_items);
+    virtual uint32_t request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_patches);
 
     virtual void wait_for_processing();
 

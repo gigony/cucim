@@ -48,10 +48,10 @@ TileInfo BatchDataProcessor::remove_front_tile()
     return tile;
 }
 
-uint32_t BatchDataProcessor::request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_items)
+uint32_t BatchDataProcessor::request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_patches)
 {
     (void)batch_item_counts;
-    (void)num_remaining_items;
+    (void)num_remaining_patches;
     return 0;
 }
 

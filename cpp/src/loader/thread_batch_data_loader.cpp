@@ -104,11 +104,12 @@ ThreadBatchDataLoader::~ThreadBatchDataLoader()
             cudaError_t cuda_status;
             if (raster_ptr)
             {
-                CUDA_TRY(cudaFree(raster_ptr));
+                cuda_status = cudaSuccess;
+                // CUDA_TRY(cudaFree(raster_ptr));
             }
             if (cuda_status)
             {
-                fmt::print(stderr, "[Error] Cannot free memory!");
+                fmt::print(stderr, "[Error] Cannot free GPU memory!");
             }
             break;
         case io::DeviceType::kPinned:
@@ -167,8 +168,8 @@ uint32_t ThreadBatchDataLoader::request(uint32_t load_size)
 
     if (batch_data_processor_)
     {
-        uint32_t num_remaining_items = static_cast<uint32_t>(location_len_ - queued_item_count_);
-        batch_data_processor_->request(batch_item_counts_, num_remaining_items);
+        uint32_t num_remaining_patches = static_cast<uint32_t>(location_len_ - queued_item_count_);
+        batch_data_processor_->request(batch_item_counts_, num_remaining_patches);
     }
     return num_items_to_request;
 }
@@ -193,7 +194,7 @@ uint32_t ThreadBatchDataLoader::wait_batch()
             if (batch_data_processor_)
             {
                 TileInfo tile = batch_data_processor_->remove_front_tile();
-                fmt::print(" patch: {} index: {}\n", tile.location_index, tile.index);
+                fmt::print("  Finished patch: {} index: {}\n", tile.location_index, tile.index);
             }
         }
         batch_item_counts_.pop_front();
@@ -294,6 +295,7 @@ bool ThreadBatchDataLoader::enqueue(std::function<void()> task, const TileInfo& 
         tasks_.emplace_back(std::move(future));
         if (batch_data_processor_)
         {
+            fmt::print("  Requested patch: {} index: {}\n", tile.location_index, tile.index);
             batch_data_processor_->add_tile(tile);
         }
         return true;
