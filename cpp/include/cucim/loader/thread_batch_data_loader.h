@@ -27,6 +27,7 @@
 #include "cucim/concurrent/threadpool.h"
 #include "cucim/io/device.h"
 #include "cucim/loader/batch_data_processor.h"
+#include "cucim/loader/tile_info.h"
 
 namespace cucim::loader
 {
@@ -62,6 +63,9 @@ public:
      */
     uint8_t* next_data();
 
+    BatchDataProcessor* batch_data_processor();
+    void wait_for_processing();
+
     uint64_t size() const;
     uint32_t batch_size() const;
 
@@ -70,7 +74,7 @@ public:
     uint8_t* data() const;
     uint32_t data_batch_size() const;
 
-    bool enqueue(std::function<void()> task, uint32_t index);
+    bool enqueue(std::function<void()> task, const TileInfo& tile);
 
 private:
     LoadFunc load_func_;

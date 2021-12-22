@@ -22,6 +22,8 @@
 #include <cstdint>
 #include <deque>
 
+#include "tile_info.h"
+
 namespace cucim::loader
 {
 
@@ -31,12 +33,18 @@ public:
     BatchDataProcessor(uint32_t batch_size);
     virtual ~BatchDataProcessor();
 
-    void add_index(uint32_t index);
-    uint32_t remove_front_index();
+    void add_tile(const TileInfo& tile);
+    TileInfo remove_front_tile();
+
+    virtual uint32_t request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_items);
+
+    virtual void wait_for_processing();
 
 protected:
     uint32_t batch_size_ = 1;
-    std::deque<uint32_t> indices_;
+    uint64_t total_index_count_ = 0;
+    uint64_t processed_index_count_ = 0;
+    std::deque<TileInfo> tiles_;
 };
 
 } // namespace cucim::loader

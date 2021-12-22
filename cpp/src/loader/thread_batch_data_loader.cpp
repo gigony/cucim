@@ -167,7 +167,8 @@ uint32_t ThreadBatchDataLoader::request(uint32_t load_size)
 
     if (batch_data_processor_)
     {
-        batch_data_processor_ = nullptr; // TO WORK
+        uint32_t num_remaining_items = static_cast<uint32_t>(location_len_ - queued_item_count_);
+        batch_data_processor_->request(batch_item_counts_, num_remaining_items);
     }
     return num_items_to_request;
 }
@@ -191,8 +192,8 @@ uint32_t ThreadBatchDataLoader::wait_batch()
             tasks_.pop_front();
             if (batch_data_processor_)
             {
-                uint32_t index = batch_data_processor_->remove_front_index();
-                fmt::print("  index: {}\n", index);
+                TileInfo tile = batch_data_processor_->remove_front_tile();
+                fmt::print(" patch: {} index: {}\n", tile.location_index, tile.index);
             }
         }
         batch_item_counts_.pop_front();
@@ -240,6 +241,21 @@ uint8_t* ThreadBatchDataLoader::next_data()
     return batch_raster_ptr;
 }
 
+BatchDataProcessor* ThreadBatchDataLoader::batch_data_processor()
+{
+    return batch_data_processor_.get();
+}
+
+void ThreadBatchDataLoader::wait_for_processing()
+{
+    if (batch_data_processor_ == nullptr)
+    {
+        return;
+    }
+
+    batch_data_processor_->wait_for_processing();
+}
+
 uint64_t ThreadBatchDataLoader::size() const
 {
     return location_len_;
@@ -270,7 +286,7 @@ uint32_t ThreadBatchDataLoader::data_batch_size() const
     return current_data_batch_size_;
 }
 
-bool ThreadBatchDataLoader::enqueue(std::function<void()> task, uint32_t index)
+bool ThreadBatchDataLoader::enqueue(std::function<void()> task, const TileInfo& tile)
 {
     if (num_workers_ > 0)
     {
@@ -278,7 +294,7 @@ bool ThreadBatchDataLoader::enqueue(std::function<void()> task, uint32_t index)
         tasks_.emplace_back(std::move(future));
         if (batch_data_processor_)
         {
-            batch_data_processor_->add_index(index);
+            batch_data_processor_->add_tile(tile);
         }
         return true;
     }

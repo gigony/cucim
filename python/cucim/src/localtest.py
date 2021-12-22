@@ -40,7 +40,7 @@ class Timer(ContextDecorator):
         print("{} : {}".format(self.message, self.end - self.start))
 
 
-img = CuImage("notebooks/input/TUPAC-TR-467.svs")
+img = CuImage("notebooks/input/image.tif")
 
 cache = CuImage.cache("per_process", memory_capacity=1024)
 
@@ -56,7 +56,7 @@ with Timer("  Thread elapsed time (cuCIM)") as timer:
     # a = img.read_region(num_workers=16)
     # print(a)
     batch_iter = img.read_region(
-        iter(start_loc_data), (patch_size, patch_size), batch_size=32, num_workers=16)  # device="cuda",
+        iter(start_loc_data), (patch_size, patch_size), batch_size=32, device="cuda", num_workers=16)  # device="cuda",
     c = 0
     for batch in batch_iter:
         c += 1

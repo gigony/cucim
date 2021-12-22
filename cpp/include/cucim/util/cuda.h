@@ -29,6 +29,17 @@
         }                                                                                                              \
     }
 
+#define CUDA_ERROR(stmt)                                                                                               \
+    {                                                                                                                  \
+        cuda_status = stmt;                                                                                            \
+        if (cudaSuccess != cuda_status)                                                                                \
+        {                                                                                                              \
+            throw std::runtime_error(                                                                                  \
+                fmt::format("[Error] CUDA Runtime call {} in line {} of file {} failed with '{}' ({}).\n", #stmt,      \
+                            __LINE__, __FILE__, cudaGetErrorString(cuda_status), cuda_status));                        \
+        }                                                                                                              \
+    }
+
 namespace cucim::util
 {
 

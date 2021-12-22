@@ -25,7 +25,7 @@
 namespace cucim::loader
 {
 
-BatchDataProcessor::BatchDataProcessor(uint32_t batch_size) : batch_size_(batch_size)
+BatchDataProcessor::BatchDataProcessor(uint32_t batch_size) : batch_size_(batch_size), processed_index_count_(0)
 {
 }
 
@@ -34,15 +34,28 @@ BatchDataProcessor::~BatchDataProcessor()
 }
 
 
-void BatchDataProcessor::add_index(uint32_t index)
+void BatchDataProcessor::add_tile(const TileInfo& tile)
 {
-    indices_.emplace_back(index);
+    tiles_.emplace_back(tile);
+    ++total_index_count_;
 }
 
-uint32_t BatchDataProcessor::remove_front_index()
+TileInfo BatchDataProcessor::remove_front_tile()
 {
-    uint32_t index = indices_.front();
-    indices_.pop_front();
-    return index;
+    TileInfo tile = tiles_.front();
+    tiles_.pop_front();
+    ++processed_index_count_;
+    return tile;
+}
+
+uint32_t BatchDataProcessor::request(std::deque<uint32_t> batch_item_counts, uint32_t num_remaining_items)
+{
+    (void)batch_item_counts;
+    (void)num_remaining_items;
+    return 0;
+}
+
+void BatchDataProcessor::wait_for_processing()
+{
 }
 }

@@ -93,6 +93,7 @@ public:
 
     virtual void lock(uint64_t index) = 0;
     virtual void unlock(uint64_t index) = 0;
+    virtual void* mutex(uint64_t index) = 0;
 
     virtual bool insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value) = 0;
 

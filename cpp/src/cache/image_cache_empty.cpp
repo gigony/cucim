@@ -47,6 +47,11 @@ void EmptyImageCache::unlock(uint64_t)
     return;
 }
 
+void* EmptyImageCache::mutex(uint64_t)
+{
+    return nullptr;
+}
+
 bool EmptyImageCache::insert(std::shared_ptr<ImageCacheKey>&, std::shared_ptr<ImageCacheValue>&)
 {
     return true;

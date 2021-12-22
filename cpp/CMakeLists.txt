@@ -61,6 +61,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/io/format/image_format.h
         include/cucim/loader/batch_data_processor.h
         include/cucim/loader/thread_batch_data_loader.h
+        include/cucim/loader/tile_info.h
         include/cucim/logger/logger.h
         include/cucim/logger/timer.h
         include/cucim/macros/defines.h

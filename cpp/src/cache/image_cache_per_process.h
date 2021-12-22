@@ -80,6 +80,7 @@ public:
     void* allocate(std::size_t n) override;
     void lock(uint64_t index) override;
     void unlock(uint64_t index) override;
+    void* mutex(uint64_t index) override;
 
     bool insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value) override;
 

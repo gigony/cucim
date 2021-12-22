@@ -492,6 +492,9 @@ copy_nvjpeg_files_() {
     local nvjpeg_include
     local nvjpeg_lib
 
+    # Do not copy nvjpeg files until device input is supported
+    return
+
     for candidate in ${nvjpeg_search}; do
         nvjpeg_include="$(echo $candidate | cut -d: -f1)"
         nvjpeg_lib="$(echo $candidate | cut -d: -f2)"

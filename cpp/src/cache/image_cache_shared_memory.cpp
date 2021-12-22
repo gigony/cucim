@@ -344,6 +344,11 @@ void SharedMemoryImageCache::unlock(uint64_t index)
     mutex_array_[index % *mutex_pool_capacity_].unlock();
 }
 
+void* SharedMemoryImageCache::mutex(uint64_t index)
+{
+    return &mutex_array_[index % *mutex_pool_capacity_];
+}
+
 bool SharedMemoryImageCache::insert(std::shared_ptr<ImageCacheKey>& key, std::shared_ptr<ImageCacheValue>& value)
 {
     if (value->size > *capacity_nbytes_ || *capacity_ < 1)

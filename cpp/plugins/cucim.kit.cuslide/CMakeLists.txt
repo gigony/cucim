@@ -213,6 +213,8 @@ target_compile_options(${CUCIM_PLUGIN_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-W
 # Link libraries
 target_link_libraries(${CUCIM_PLUGIN_NAME}
         PRIVATE
+            deps::nvjpeg_static # add this before cudart so that nvjpeg.h in static library takes precedence.
+            CUDA::culibos       # for nvjpeg
             CUDA::cudart
             deps::fmt
             cucim::cucim
@@ -223,7 +225,6 @@ target_link_libraries(${CUCIM_PLUGIN_NAME}
             deps::pugixml
             deps::json
             deps::libdeflate
-            deps::nvjpeg_static
         )
 
 target_include_directories(${CUCIM_PLUGIN_NAME}
