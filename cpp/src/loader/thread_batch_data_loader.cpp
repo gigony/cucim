@@ -178,7 +178,6 @@ uint32_t ThreadBatchDataLoader::wait_batch()
         return 0;
     }
 
-    // fmt::print("# Batch index {}\n", processed_batch_count_);
     uint32_t num_items_waited = 0;
     for (uint32_t batch_item_index = 0; batch_item_index < batch_size_ && !batch_item_counts_.empty(); ++batch_item_index)
     {
@@ -191,7 +190,6 @@ uint32_t ThreadBatchDataLoader::wait_batch()
             if (batch_data_processor_)
             {
                 batch_data_processor_->remove_front_tile();
-                // fmt::print("  Finished patch: {} index: {}\n", tile.location_index, tile.index);
                 uint32_t num_remaining_patches = static_cast<uint32_t>(location_len_ - queued_item_count_);
                 batch_data_processor_->wait_batch(i, batch_item_counts_, num_remaining_patches);
             }
@@ -312,7 +310,6 @@ bool ThreadBatchDataLoader::enqueue(std::function<void()> task, const TileInfo& 
         tasks_.emplace_back(std::move(future));
         if (batch_data_processor_)
         {
-            // fmt::print("  Requested patch: {} index: {}\n", tile.location_index, tile.index);
             batch_data_processor_->add_tile(tile);
         }
         return true;

@@ -219,7 +219,6 @@ uint32_t NvJpegProcessor::request(std::deque<uint32_t>& batch_item_counts, uint3
             cache_tile_queue_.emplace_back(index);
             cache_tile_map_.emplace(index, tile);
             tile_to_request.emplace_back(tile);
-            // fmt::print("  Candidate NVJPEG patch: {} index: {}\n", tile.location_index, tile.index);
         }
     }
 
@@ -297,7 +296,6 @@ uint32_t NvJpegProcessor::request(std::deque<uint32_t>& batch_item_counts, uint3
         throw std::runtime_error(fmt::format("Error in batched decode: {}", error_code));
     }
     CUDA_ERROR(cudaStreamSynchronize(stream_));
-    // fmt::print(" # NVJPEG Batch Processing: {}\n", request_count);
 
     // Remove previous batch (keep last 'cuda_batch_size_' items) before adding to cuda_image_cache_
     // TODO: Utilize the removed tiles if next batch uses them.

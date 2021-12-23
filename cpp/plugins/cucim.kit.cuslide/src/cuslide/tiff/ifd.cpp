@@ -198,11 +198,6 @@ bool IFD::read(const TIFF* tiff,
             };
             std::shuffle(reinterpret_cast<position*>(&location[0]),
                          reinterpret_cast<position*>(&location[location_len * 2]), rng);
-            for (uint64_t i = 0; i < location_len; i++)
-            {
-                fmt::print("[{}, {}], ", location[i * 2], location[i * 2 + 1]);
-            }
-            fmt::print("\n");
         }
 
         // Adjust location length based on 'drop_last'
