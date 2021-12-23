@@ -33,5 +33,4 @@ EXPORT_VISIBLE bool decode_libnvjpeg(int fd,
 
 } // namespace cuslide::jpeg
 
-
 #endif // CUSLIDE_LIBNVJPEG_H

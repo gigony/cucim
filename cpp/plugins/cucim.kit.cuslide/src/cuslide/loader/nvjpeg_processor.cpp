@@ -34,6 +34,9 @@ constexpr uint32_t MAX_CUDA_BATCH_SIZE = 1024;
 
 NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
                                  const cuslide::tiff::IFD* ifd,
+                                 int64_t* request_location,
+                                 int64_t* request_size,
+                                 uint64_t location_len,
                                  uint32_t batch_size,
                                  uint32_t maximum_tile_count,
                                  const uint8_t* jpegtable_data,
@@ -59,6 +62,7 @@ NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
             }
         }
 
+        // Do not exceed MAX_CUDA_BATCH_SIZE for decoding JPEG with nvJPEG
         uint32_t cuda_batch_size = std::min(maximum_tile_count, MAX_CUDA_BATCH_SIZE);
 
         // Update prefetch_factor
@@ -79,11 +83,6 @@ NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
 
         // Initialize nvjpeg
         cudaError_t cuda_status;
-
-        // cudaDeviceProp props;
-        // CUDA_ERROR(cudaFree(0));
-        // CUDA_ERROR(cudaSetDevice(dev_));
-        // CUDA_ERROR(cudaGetDeviceProperties(&props, dev_));
 
         if (NVJPEG_STATUS_SUCCESS != nvjpegCreate(backend_, NULL, &handle_))
         {
@@ -107,39 +106,63 @@ NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
             raw_cuda_outputs_.emplace_back(); // add all-zero nvjpegImage_t object
         }
 
-        cufile_ = cucim::filesystem::open(file_handle->path, "rp");
-        file_start_offset_ = 0;
-        tile_width_bytes_ = ifd->tile_width() * ifd->pixel_size_nbytes();
+        // Read file block in advance
+        tile_width_ = ifd->tile_width();
+        tile_width_bytes_ = tile_width_ * ifd->pixel_size_nbytes();
         tile_height_ = ifd->tile_height();
         tile_raster_nbytes_ = tile_width_bytes_ * tile_height_;
 
         struct stat sb;
         fstat(file_handle_->fd, &sb);
-        uint64_t file_size = sb.st_size;
+        file_size_ = sb.st_size;
+        file_start_offset_ = 0;
+        file_block_size_ = file_size_;
+
+        update_file_block_info(request_location, request_size, location_len);
 
         constexpr int BLOCK_SECTOR_SIZE = 4096;
-        unaligned_host_ = static_cast<uint8_t*>(cucim_malloc(file_size + BLOCK_SECTOR_SIZE * 2));
-        aligned_host_ = reinterpret_cast<uint8_t*>(ALIGN_UP(unaligned_host_, BLOCK_SECTOR_SIZE));
-
-        // Read whole data
-        cufile_->pread(aligned_host_, file_size, file_start_offset_);
+        switch (backend_)
+        {
+        case NVJPEG_BACKEND_GPU_HYBRID:
+            cufile_ = cucim::filesystem::open(file_handle->path, "rp");
+            unaligned_host_ = static_cast<uint8_t*>(cucim_malloc(file_block_size_ + BLOCK_SECTOR_SIZE * 2));
+            aligned_host_ = reinterpret_cast<uint8_t*>(ALIGN_UP(unaligned_host_, BLOCK_SECTOR_SIZE));
+            cufile_->pread(aligned_host_, file_block_size_, file_start_offset_);
+            break;
+        case NVJPEG_BACKEND_GPU_HYBRID_DEVICE:
+            cufile_ = cucim::filesystem::open(file_handle->path, "r");
+            CUDA_ERROR(cudaMalloc(&unaligned_device_, file_block_size_ + BLOCK_SECTOR_SIZE));
+            aligned_device_ = reinterpret_cast<uint8_t*>(ALIGN_UP(unaligned_device_, BLOCK_SECTOR_SIZE));
+            cufile_->pread(aligned_device_, file_block_size_, file_start_offset_);
+            break;
+        default:
+            throw std::runtime_error("Unsupported backend type");
+        }
     }
 }
 
 NvJpegProcessor::~NvJpegProcessor()
 {
-    cudaError_t cuda_status;
     if (unaligned_host_)
     {
         cucim_free(unaligned_host_);
         unaligned_host_ = nullptr;
     }
-    // CUDA_ERROR(cudaFree(unaligned_device));
 
-    fmt::print(stderr, "~NvJpegProcessor()\n");
-    for (uint32_t i = 0; i < cuda_batch_size_; i++)
+    cudaError_t cuda_status;
+    if (unaligned_device_)
     {
-        CUDA_ERROR(cudaFree(raw_cuda_outputs_[i].channel[0]));
+        CUDA_ERROR(cudaFree(unaligned_device_));
+        unaligned_device_ = nullptr;
+    }
+
+    for (uint32_t i = 0; i < cuda_batch_size_; ++i)
+    {
+        if (raw_cuda_outputs_[i].channel[0])
+        {
+            CUDA_ERROR(cudaFree(raw_cuda_outputs_[i].channel[0]));
+            raw_cuda_outputs_[i].channel[0] = nullptr;
+        }
     }
 }
 
@@ -228,14 +251,27 @@ uint32_t NvJpegProcessor::request(std::deque<uint32_t>& batch_item_counts, uint3
         }
     }
 
-    cudaError_t cuda_status;
+    uint8_t* file_block_ptr = nullptr;
+    switch (backend_)
+    {
+    case NVJPEG_BACKEND_GPU_HYBRID:
+        file_block_ptr = aligned_host_;
+        break;
+    case NVJPEG_BACKEND_GPU_HYBRID_DEVICE:
+        file_block_ptr = aligned_device_;
+        break;
+    default:
+        throw std::runtime_error("Unsupported backend type");
+    }
 
+    cudaError_t cuda_status;
     if (raw_cuda_inputs_.empty())
     {
         // Initialize batch data with the first data
         for (uint32_t i = 0; i < cuda_batch_size_; ++i)
         {
-            uint8_t* mem_offset = aligned_host_ + tile_to_request[0].offset - file_start_offset_;
+            uint8_t* mem_offset = nullptr;
+            mem_offset = file_block_ptr + tile_to_request[0].offset - file_start_offset_;
             raw_cuda_inputs_.push_back((const unsigned char*)mem_offset);
             raw_cuda_inputs_len_.push_back(tile_to_request[0].size);
             CUDA_ERROR(cudaMallocPitch(
@@ -243,18 +279,17 @@ uint32_t NvJpegProcessor::request(std::deque<uint32_t>& batch_item_counts, uint3
             // fmt::print(stderr, "  Allocated cuda memory pitch: {} tile_width_bytes: {}\n",
             //            raw_cuda_outputs_[i].pitch[0], tile_width_bytes_);
         }
+        CUDA_ERROR(cudaStreamSynchronize(stream_));
     }
 
     size_t request_count = tile_to_request.size();
     for (uint32_t i = 0; i < request_count; ++i)
     {
-        uint8_t* mem_offset = aligned_host_ + tile_to_request[i].offset - file_start_offset_;
+        uint8_t* mem_offset = file_block_ptr + tile_to_request[i].offset - file_start_offset_;
         // fmt::print("Add i: {},  offset: {},  len: {}\n", i, (uint64_t)mem_offset, tile_to_request[i].size);
         raw_cuda_inputs_[i] = mem_offset;
         raw_cuda_inputs_len_[i] = tile_to_request[i].size;
     }
-
-    CUDA_ERROR(cudaStreamSynchronize(stream_));
 
     // for (int i = 0; i < 10; ++i)
     // {
@@ -371,6 +406,51 @@ void NvJpegProcessor::shutdown()
 uint32_t NvJpegProcessor::preferred_loader_prefetch_factor()
 {
     return preferred_loader_prefetch_factor_;
+}
+
+void NvJpegProcessor::update_file_block_info(int64_t* request_location, int64_t* request_size, uint64_t location_len)
+{
+
+    uint32_t width = ifd_->width();
+    uint32_t height = ifd_->height();
+    uint32_t stride_y = width / tile_width_ + !!(width % tile_width_); // # of tiles in a row(y) in the ifd tile array
+                                                                       // as grid
+    uint32_t stride_x = height / tile_height_ + !!(height % tile_height_); // # of tiles in a col(x) in the ifd tile
+                                                                           // array as grid
+    int64_t min_tile_index = 1000000000;
+    int64_t max_tile_index = 0;
+
+    // Assume that offset for tiles are increasing as index is increasing.
+    for (size_t loc_index = 0; loc_index < location_len; ++loc_index)
+    {
+        int64_t sx = request_location[loc_index * 2];
+        int64_t sy = request_location[loc_index * 2 + 1];
+        int64_t offset_sx = static_cast<uint64_t>(sx) / tile_width_; // x-axis start offset for the requested region in
+                                                                     // the ifd tile array as grid
+        int64_t offset_sy = static_cast<uint64_t>(sy) / tile_height_; // y-axis start offset for the requested region in
+                                                                      // the ifd tile array as grid
+        int64_t tile_index = (offset_sy * stride_y) + offset_sx;
+        min_tile_index = std::min(min_tile_index, tile_index);
+        max_tile_index = std::max(max_tile_index, tile_index);
+    }
+
+    int64_t w = request_size[0];
+    int64_t h = request_size[1];
+    int64_t additional_index_x = (static_cast<uint64_t>(w) + (tile_width_ - 1)) / tile_width_;
+    int64_t additional_index_y = (static_cast<uint64_t>(h) + (tile_height_ - 1)) / tile_height_;
+    min_tile_index = std::max(min_tile_index, 0L);
+    max_tile_index =
+        std::min(stride_x * stride_y - 1,
+                 static_cast<uint32_t>(max_tile_index + (additional_index_y * stride_y) + additional_index_x));
+
+    auto& image_piece_offsets = const_cast<std::vector<uint64_t>&>(ifd_->image_piece_offsets());
+    auto& image_piece_bytecounts = const_cast<std::vector<uint64_t>&>(ifd_->image_piece_bytecounts());
+
+    uint64_t min_offset = image_piece_offsets[min_tile_index];
+    uint64_t max_offset = image_piece_offsets[max_tile_index] + image_piece_bytecounts[max_tile_index];
+
+    file_start_offset_ = min_offset;
+    file_block_size_ = max_offset - min_offset + 1;
 }
 
 } // namespace cuslide::loader

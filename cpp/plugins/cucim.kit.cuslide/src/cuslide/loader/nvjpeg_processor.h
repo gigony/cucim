@@ -44,6 +44,9 @@ class NvJpegProcessor : public cucim::loader::BatchDataProcessor
 public:
     NvJpegProcessor(CuCIMFileHandle* file_handle,
                     const cuslide::tiff::IFD* ifd,
+                    int64_t* request_location,
+                    int64_t* request_size,
+                    uint64_t location_len,
                     uint32_t batch_size,
                     uint32_t maximum_tile_count,
                     const uint8_t* jpegtable_data,
@@ -60,27 +63,31 @@ public:
     uint32_t preferred_loader_prefetch_factor();
 
 private:
+    void update_file_block_info(int64_t* request_location, int64_t* request_size, uint64_t location_len);
+
     bool stopped_ = false;
     uint32_t preferred_loader_prefetch_factor_ = 2;
 
     CuCIMFileHandle* file_handle_ = nullptr;
     const cuslide::tiff::IFD* ifd_ = nullptr;
     std::shared_ptr<cucim::filesystem::CuFileDriver> cufile_;
-    size_t file_start_offset_ = 0;
+    size_t tile_width_ = 0;
     size_t tile_width_bytes_ = 0;
     size_t tile_height_ = 0;
     size_t tile_raster_nbytes_ = 0;
+    size_t file_size_ = 0;
+    size_t file_start_offset_ = 0;
+    size_t file_block_size_ = 0;
 
     uint32_t cuda_batch_size_ = 1;
     int dev_ = 0;
     nvjpegHandle_t handle_ = nullptr;
     nvjpegOutputFormat_t output_format_ = NVJPEG_OUTPUT_RGBI;
     nvjpegJpegState_t state_;
-    nvjpegBackend_t backend_ = NVJPEG_BACKEND_GPU_HYBRID;
+    nvjpegBackend_t backend_ = NVJPEG_BACKEND_GPU_HYBRID_DEVICE; // NVJPEG_BACKEND_GPU_HYBRID
     cudaStream_t stream_ = nullptr;
 
     std::condition_variable cuda_batch_cond_;
-    std::mutex cuda_batch_mutex_;
     std::unique_ptr<cucim::cache::ImageCache> cuda_image_cache_;
     uint64_t processed_cuda_batch_count_ = 0;
     cucim::loader::TileInfo fetch_after_{ -1, -1, 0, 0 };
@@ -90,11 +97,12 @@ private:
 
     uint8_t* unaligned_host_ = nullptr;
     uint8_t* aligned_host_ = nullptr;
+    uint8_t* unaligned_device_ = nullptr;
+    uint8_t* aligned_device_ = nullptr;
+
     std::vector<const unsigned char*> raw_cuda_inputs_;
     std::vector<size_t> raw_cuda_inputs_len_;
     std::vector<nvjpegImage_t> raw_cuda_outputs_;
-
-    std::vector<cudaStream_t> streams_;
 };
 
 } // namespace cuslide::loader

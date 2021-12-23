@@ -270,7 +270,7 @@ CuImage::~CuImage()
                 if (image_data_->loader)
                 {
                     cuda_status = cudaSuccess;
-                    CUDA_ERROR(cudaFree(image_data_->container.data));
+                    CUDA_TRY(cudaFree(image_data_->container.data));
                 }
                 image_data_->container.data = nullptr;
                 break;
@@ -653,6 +653,12 @@ CuImage CuImage::read_region(std::vector<int64_t>&& location,
     if (batch_size == 0)
     {
         batch_size = 1;
+    }
+
+    // num_workers would be always > 0 if output device type is CUDA
+    if (num_workers == 0 && device.type() == cucim::io::DeviceType::kCUDA)
+    {
+        num_workers = 1;
     }
 
     uint32_t size_ndim = size.size();

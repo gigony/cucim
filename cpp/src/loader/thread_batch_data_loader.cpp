@@ -107,7 +107,7 @@ ThreadBatchDataLoader::~ThreadBatchDataLoader()
             if (raster_ptr)
             {
                 cuda_status = cudaSuccess;
-                CUDA_ERROR(cudaFree(raster_ptr));
+                CUDA_TRY(cudaFree(raster_ptr));
             }
             break;
         case io::DeviceType::kPinned:

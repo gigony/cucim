@@ -61,11 +61,11 @@ start_loc_data = [(sx, sy)
                   for sy in range(start_location, height, patch_size)
                   for sx in range(start_location, width, patch_size)]
 # start_loc_data = start_loc_data[len(
-#     start_loc_data) // 2:len(start_loc_data)//2 + 100]
+#     start_loc_data) // 2:len(start_loc_data)//2 + 100]\
 
 
 with Timer("  Thread elapsed time (cuCIM)") as timer:
-    region = img.read_region(device="cuda", num_workers=4)
+    region = img.read_region(device="cuda")
     # # a = img.read_region(num_workers=16)
     # # print(a)
     # batch_iter = img.read_region(
