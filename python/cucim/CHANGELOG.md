@@ -1,6 +1,10 @@
 
 # Changelog (See [Release Notes](https://github.com/rapidsai/cucim/wiki/Release-Notes))
 
+## [21.12.01](https://github.com/rapidsai/cucim/wiki/release_notes_v21.12.01)
+
+- [New] Supporting Multithreading and Batch Processing ([#149](https://github.com/rapidsai/cucim/issues/149)) [@gigony](https://github.com/gigony)
+
 ## [21.12.00](https://github.com/rapidsai/cucim/wiki/release_notes_v21.12.00)
 
 - [New] Support Aperio SVS with CPU LZW and jpeg2k decoder ([#141](https://github.com/rapidsai/cucim/pull/141)) [@gigony](https://github.com/gigony)
