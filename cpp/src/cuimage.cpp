@@ -266,10 +266,10 @@ CuImage::~CuImage()
                 image_data_->container.data = nullptr;
                 break;
             case io::DeviceType::kCUDA:
-                cudaError_t cuda_status;
+
                 if (image_data_->loader)
                 {
-                    cuda_status = cudaSuccess;
+                    cudaError_t cuda_status;
                     CUDA_TRY(cudaFree(image_data_->container.data));
                 }
                 image_data_->container.data = nullptr;
@@ -1363,10 +1363,9 @@ void CuImageIterator<DataType>::increase_index_()
                 }
                 break;
             case io::DeviceType::kCUDA:
-                cudaError_t cuda_status;
                 if (*image_data_ptr)
                 {
-                    cuda_status = cudaSuccess;
+                    cudaError_t cuda_status;
                     CUDA_ERROR(cudaFree(*image_data_ptr));
                 }
                 break;

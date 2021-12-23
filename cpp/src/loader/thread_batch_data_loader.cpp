@@ -19,7 +19,6 @@
 
 #include <cassert>
 
-#include <cuda_runtime.h>
 #include <fmt/format.h>
 
 #include "cucim/profiler/nvtx3.h"
@@ -72,12 +71,7 @@ ThreadBatchDataLoader::ThreadBatchDataLoader(LoadFunc load_func,
             cudaError_t cuda_status;
             void* image_data_ptr = nullptr;
             CUDA_ERROR(cudaMalloc(&image_data_ptr, buffer_size_));
-            // fmt::print(stderr, "cudaMalloc: i:{}, {}  size: {}\n", i, (uint64_t)image_data_ptr, buffer_size_);
             raster_data_.emplace_back(static_cast<uint8_t*>(image_data_ptr));
-            if (cuda_status)
-            {
-                fmt::print(stderr, "[Error] Cannot allocate GPU memory!\n");
-            }
             break;
         }
         case io::DeviceType::kPinned:
@@ -184,7 +178,7 @@ uint32_t ThreadBatchDataLoader::wait_batch()
         return 0;
     }
 
-    fmt::print("# Batch index {}\n", processed_batch_count_);
+    // fmt::print("# Batch index {}\n", processed_batch_count_);
     uint32_t num_items_waited = 0;
     for (uint32_t batch_item_index = 0; batch_item_index < batch_size_ && !batch_item_counts_.empty(); ++batch_item_index)
     {
@@ -196,8 +190,8 @@ uint32_t ThreadBatchDataLoader::wait_batch()
             tasks_.pop_front();
             if (batch_data_processor_)
             {
-                TileInfo tile = batch_data_processor_->remove_front_tile();
-                fmt::print("  Finished patch: {} index: {}\n", tile.location_index, tile.index);
+                batch_data_processor_->remove_front_tile();
+                // fmt::print("  Finished patch: {} index: {}\n", tile.location_index, tile.index);
                 uint32_t num_remaining_patches = static_cast<uint32_t>(location_len_ - queued_item_count_);
                 batch_data_processor_->wait_batch(i, batch_item_counts_, num_remaining_patches);
             }
@@ -211,8 +205,9 @@ uint32_t ThreadBatchDataLoader::wait_batch()
 
 uint8_t* ThreadBatchDataLoader::next_data()
 {
-    if (num_workers_ == 0)
+    if (num_workers_ == 0) // (location_len == 1 && batch_size == 1)
     {
+        // If it reads entire image with multi threads (using loader), release raster memory from batch data loader.
         uint8_t* batch_raster_ptr = raster_data_[0];
         raster_data_[0] = nullptr;
         return batch_raster_ptr;
@@ -317,7 +312,7 @@ bool ThreadBatchDataLoader::enqueue(std::function<void()> task, const TileInfo& 
         tasks_.emplace_back(std::move(future));
         if (batch_data_processor_)
         {
-            fmt::print("  Requested patch: {} index: {}\n", tile.location_index, tile.index);
+            // fmt::print("  Requested patch: {} index: {}\n", tile.location_index, tile.index);
             batch_data_processor_->add_tile(tile);
         }
         return true;

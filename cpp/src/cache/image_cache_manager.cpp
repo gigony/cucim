@@ -121,5 +121,4 @@ std::unique_ptr<ImageCache> ImageCacheManager::create_cache() const
     return create_cache(cache_config);
 }
 
-
 } // namespace cucim::cache

@@ -73,10 +73,6 @@ PerProcessImageCacheValue::~PerProcessImageCacheValue()
         case io::DeviceType::kCUDA: {
             cudaError_t cuda_status;
             CUDA_TRY(cudaFree(data));
-            if (cuda_status)
-            {
-                fmt::print(stderr, "[Error] Cannot allocate GPU memory!\n");
-            }
             break;
         }
         case io::DeviceType::kPinned:
@@ -131,10 +127,6 @@ void* PerProcessImageCache::allocate(std::size_t n)
         cudaError_t cuda_status;
         void* image_data_ptr = nullptr;
         CUDA_TRY(cudaMalloc(&image_data_ptr, n));
-        if (cuda_status)
-        {
-            fmt::print(stderr, "[Error] Cannot allocate GPU memory!\n");
-        }
         return image_data_ptr;
     }
     case io::DeviceType::kPinned:
@@ -199,16 +191,11 @@ void PerProcessImageCache::remove_front()
             if (list_head_.compare_exchange_weak(
                     head, (head + 1) % list_capacity_, std::memory_order_release, std::memory_order_relaxed))
             {
-                // fmt::print(stderr, "{} remove list_[{:05}]\n",
-                // std::hash<std::thread::id>{}(std::this_thread::get_id()), head); //[print_list]
                 std::shared_ptr<PerProcessImageCacheItem> head_item = list_[head];
-                // if (head_item) // it is possible that head_item is nullptr.
-                // {
                 size_nbytes_.fetch_sub(head_item->value->size, std::memory_order_relaxed);
                 hashmap_.erase(head_item->key);
                 list_[head].reset(); // decrease refcount
                 break;
-                // }
             }
         }
         else
@@ -371,7 +358,6 @@ void PerProcessImageCache::push_back(std::shared_ptr<PerProcessImageCacheItem>& 
         if (list_tail_.compare_exchange_weak(
                 tail, (tail + 1) % list_capacity_, std::memory_order_release, std::memory_order_relaxed))
         {
-            // fmt::print(stderr, "{} list_[{:05}]={}\n", std::hash<std::thread::id>{}(std::this_thread::get_id()), tail, (uint64_t)item->key->location_hash); // [print_list]
             list_[tail] = item;
             size_nbytes_.fetch_add(item->value->size, std::memory_order_relaxed);
             break;

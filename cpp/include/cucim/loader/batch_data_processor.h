@@ -39,7 +39,9 @@ public:
     TileInfo remove_front_tile();
 
     virtual uint32_t request(std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches);
-    virtual uint32_t wait_batch(uint32_t index, std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches);
+    virtual uint32_t wait_batch(uint32_t index_in_task,
+                                std::deque<uint32_t>& batch_item_counts,
+                                uint32_t num_remaining_patches);
 
     virtual std::shared_ptr<cucim::cache::ImageCacheValue> wait_for_processing(uint32_t);
 

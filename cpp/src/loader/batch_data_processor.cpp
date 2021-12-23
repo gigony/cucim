@@ -55,11 +55,11 @@ uint32_t BatchDataProcessor::request(std::deque<uint32_t>& batch_item_counts, ui
     return 0;
 }
 
-uint32_t BatchDataProcessor::wait_batch(uint32_t index,
+uint32_t BatchDataProcessor::wait_batch(uint32_t index_in_task,
                                         std::deque<uint32_t>& batch_item_counts,
                                         uint32_t num_remaining_patches)
 {
-    (void)index;
+    (void)index_in_task;
     (void)batch_item_counts;
     (void)num_remaining_patches;
     return 0;
@@ -73,4 +73,5 @@ std::shared_ptr<cucim::cache::ImageCacheValue> BatchDataProcessor::wait_for_proc
 void BatchDataProcessor::shutdown()
 {
 }
-}
+
+} // namespace cucim::loader

@@ -20,9 +20,9 @@
 #include "cucim/macros/api_header.h"
 
 #include <cstdint>
+#include <deque>
 #include <memory>
 #include <vector>
-#include <deque>
 
 #include "cucim/cache/image_cache.h"
 #include "cucim/concurrent/threadpool.h"

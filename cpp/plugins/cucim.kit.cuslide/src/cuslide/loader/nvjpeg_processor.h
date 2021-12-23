@@ -21,9 +21,9 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <vector>
 #include <queue>
 #include <unordered_map>
+#include <vector>
 
 #include <nvjpeg.h>
 
@@ -34,7 +34,6 @@
 #include <cucim/loader/tile_info.h>
 
 #include "cuslide/tiff/ifd.h"
-
 
 namespace cuslide::loader
 {
@@ -54,7 +53,9 @@ public:
     ~NvJpegProcessor();
 
     uint32_t request(std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches) override;
-    uint32_t wait_batch(uint32_t index, std::deque<uint32_t>& batch_item_counts, uint32_t num_remaining_patches) override;
+    uint32_t wait_batch(uint32_t index_in_task,
+                        std::deque<uint32_t>& batch_item_counts,
+                        uint32_t num_remaining_patches) override;
 
     std::shared_ptr<cucim::cache::ImageCacheValue> wait_for_processing(uint32_t index) override;
 
@@ -80,11 +81,10 @@ private:
     size_t file_block_size_ = 0;
 
     uint32_t cuda_batch_size_ = 1;
-    int dev_ = 0;
     nvjpegHandle_t handle_ = nullptr;
     nvjpegOutputFormat_t output_format_ = NVJPEG_OUTPUT_RGBI;
     nvjpegJpegState_t state_;
-    nvjpegBackend_t backend_ = NVJPEG_BACKEND_GPU_HYBRID_DEVICE; // NVJPEG_BACKEND_GPU_HYBRID
+    nvjpegBackend_t backend_ = NVJPEG_BACKEND_GPU_HYBRID_DEVICE;
     cudaStream_t stream_ = nullptr;
 
     std::condition_variable cuda_batch_cond_;
@@ -106,6 +106,5 @@ private:
 };
 
 } // namespace cuslide::loader
-
 
 #endif // CUSLIDE_NVJPEG_PROCESSOR_H
