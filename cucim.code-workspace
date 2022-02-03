@@ -152,7 +152,9 @@
 			"numbers": "cpp",
 			"semaphore": "cpp",
 			"stop_token": "cpp",
-			"tensor": "cpp"
+			"tensor": "cpp",
+			"ranges": "cpp",
+			"span": "cpp"
 		},
 		// https://vector-of-bool.github.io/docs/vscode-cmake-tools/settings.html
 		"cmake.buildTask": true,
