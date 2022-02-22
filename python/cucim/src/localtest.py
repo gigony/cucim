@@ -13,6 +13,52 @@
 # limitations under the License.
 #
 
+from contextlib import ContextDecorator
+from time import perf_counter
+from tifffile import TiffFile
+import sys
+import numpy as np
+from cucim import CuImage
+
+
+class Timer(ContextDecorator):
+    def __init__(self, message):
+        self.message = message
+        self.end = None
+
+    def elapsed_time(self):
+        self.end = perf_counter()
+        return self.end - self.start
+
+    def __enter__(self):
+        self.start = perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc, exc_tb):
+        if not self.end:
+            self.elapsed_time()
+        print("{} : {}".format(self.message, self.end - self.start))
+
+
+img = CuImage("notebooks/input/image.tif")
+
+cache = CuImage.cache("per_process", memory_capacity=1024)
+
+width, height = img.size("XY")
+start_location = 1
+patch_size = 224
+
+start_loc_data = [(sx, sy)
+                  for sy in range(start_location, height, patch_size)
+                  for sx in range(start_location, width, patch_size)]
+start_loc_data = start_loc_data[len(start_loc_data)//2:len(start_loc_data)//2+ 100]
+
+with Timer("  Thread elapsed time (cuCIM)") as timer:
+    region2 = img.read_region(device='cuda')
+
+import sys
+sys.exit(0)
+
 import concurrent.futures
 import json
 import os

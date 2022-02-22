@@ -22,6 +22,8 @@
 #include <cucim/cache/image_cache_manager.h>
 #include <cucim/codec/hash_function.h>
 #include <cucim/io/device.h>
+#include "cucim/logger/timer.h"
+#include <cucim/profiler/nvtx3.h>
 #include <cucim/util/cuda.h>
 #include <fmt/format.h>
 
@@ -30,7 +32,7 @@
 namespace cuslide::loader
 {
 
-constexpr uint32_t MAX_CUDA_BATCH_SIZE = 1024;
+constexpr uint32_t MAX_CUDA_BATCH_SIZE = 8192;
 
 NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
                                  const cuslide::tiff::IFD* ifd,
@@ -94,7 +96,7 @@ NvJpegProcessor::NvJpegProcessor(CuCIMFileHandle* file_handle,
         }
 
         nvjpegDecodeBatchedParseJpegTables(handle_, state_, jpegtable_data, jpegtable_size);
-        nvjpegDecodeBatchedInitialize(handle_, state_, cuda_batch_size_, 1, output_format_);
+        nvjpegDecodeBatchedInitialize(handle_, state_, cuda_batch_size_, 8, output_format_);
 
         CUDA_ERROR(cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking));
 
@@ -298,14 +300,19 @@ uint32_t NvJpegProcessor::request(std::deque<uint32_t>& batch_item_counts, const
         raw_cuda_inputs_len_[i] = tile_to_request[i].size;
     }
 
-    int error_code = nvjpegDecodeBatched(
-        handle_, state_, raw_cuda_inputs_.data(), raw_cuda_inputs_len_.data(), raw_cuda_outputs_.data(), stream_);
-
-    if (NVJPEG_STATUS_SUCCESS != error_code)
+    fmt::print("request_count: {}\n", request_count);
     {
-        throw std::runtime_error(fmt::format("Error in batched decode: {}", error_code));
+        PROF_SCOPED_RANGE(PROF_EVENT(nvjpeg_decode_batched));
+        cucim::logger::Timer timer("- nvjpeg batch : {:.7f}\n", true, true);
+        int error_code = nvjpegDecodeBatched(
+            handle_, state_, raw_cuda_inputs_.data(), raw_cuda_inputs_len_.data(), raw_cuda_outputs_.data(), stream_);
+
+        if (NVJPEG_STATUS_SUCCESS != error_code)
+        {
+            throw std::runtime_error(fmt::format("Error in batched decode: {}", error_code));
+        }
+        CUDA_ERROR(cudaStreamSynchronize(stream_));
     }
-    CUDA_ERROR(cudaStreamSynchronize(stream_));
 
     // Remove previous batch (keep last 'cuda_batch_size_' items) before adding to cuda_image_cache_
     // TODO: Utilize the removed tiles if next batch uses them.

@@ -228,6 +228,9 @@ DEFINE_EVENT(lzw_LZWDecode, "lzw::LZWDecode()", compute, 255, 0, 255, 0);
 DEFINE_EVENT(lzw_LZWCleanup, "lzw::LZWCleanup()", compute, 255, 0, 255, 0);
 DEFINE_EVENT(lzw_horAcc8, "lzw::LZWCleanup()", compute, 255, 0, 255, 0);
 
+
+DEFINE_EVENT(nvjpeg_decode_batched, "nvJPEG::nvjpegDecodeBatched()", compute, 255, 0, 255, 0);
+
 } // namespace cucim::profiler
 
 #else
