@@ -191,6 +191,8 @@ private:
     int file_flags_ = -1;
     void* mmap_ptr_ = nullptr;
     std::shared_ptr<CuCIMFileHandle> handle_;
+
+    void* cuda_event_;
 };
 
 } // namespace cucim::filesystem

@@ -29,6 +29,7 @@
 #include <cuda_runtime.h>
 #include <fmt/format.h>
 
+#include "cucim/logger/timer.h"
 #include "cucim/util/cuda.h"
 #include "cucim/util/platform.h"
 #include "cufile_stub.h"
@@ -243,6 +244,8 @@ CuFileDriver::CuFileDriver(int fd, bool no_gds, bool use_mmap, const char* file_
             throw std::runtime_error(fmt::format("[Error] failed to call mmap ({})", std::strerror(errno)));
         }
     }
+
+    cudaEventCreate(reinterpret_cast<cudaEvent_t*>(&cuda_event_));
 }
 
 bool close(const std::shared_ptr<CuFileDriver>& fd)
@@ -481,11 +484,19 @@ ssize_t CuFileDriver::pread(void* buf, size_t count, off_t file_offset, off_t bu
                 {
                     break;
                 }
-                read_cnt = ::pread(handle_->fd, cache_buf, bytes_to_copy, read_offset);
-                CUDA_TRY(cudaMemcpy(output_buf, cache_buf, bytes_to_copy, cudaMemcpyHostToDevice));
-                if (cuda_status)
                 {
-                    return -1;
+                    cucim::logger::Timer timer("    posix - pread {:.7f}\n");
+                    read_cnt = ::pread(handle_->fd, cache_buf, bytes_to_copy, read_offset);
+                }
+                fmt::print(
+                    "      bytes_to_copy: {}, read_offset: {}, read_cnt: {}\n", bytes_to_copy, read_offset, read_cnt);
+                {
+                    cucim::logger::Timer timer("    posix - cudaMemcpy {:.7f}\n");
+                    CUDA_TRY(cudaMemcpy(output_buf, cache_buf, bytes_to_copy, cudaMemcpyHostToDevice));
+                    if (cuda_status)
+                    {
+                        return -1;
+                    }
                 }
                 read_offset += read_cnt;
                 output_buf += read_cnt;
@@ -496,7 +507,11 @@ ssize_t CuFileDriver::pread(void* buf, size_t count, off_t file_offset, off_t bu
         }
         else
         {
-            total_read_cnt = ::pread(handle_->fd, reinterpret_cast<char*>(buf) + buf_offset, count, file_offset);
+            {
+                cucim::logger::Timer timer("    posix - pread {:.7f}\n");
+                total_read_cnt = ::pread(handle_->fd, reinterpret_cast<char*>(buf) + buf_offset, count, file_offset);
+            }
+            fmt::print("      count: {}, file_offset: {}, total_read_cnt: {}\n", count, file_offset, total_read_cnt);
         }
     }
     else if (file_type == FileHandleType::kMemoryMapped)
@@ -529,8 +544,14 @@ ssize_t CuFileDriver::pread(void* buf, size_t count, off_t file_offset, off_t bu
             {
                 if (memory_type == cudaMemoryTypeUnregistered)
                 {
-                    read_cnt =
-                        ::pread(handle_->fd, reinterpret_cast<char*>(buf) + buf_offset, block_read_size, file_offset);
+                    {
+                        cucim::logger::Timer timer("    posix_odirect - pread {:.7f}\n");
+
+                        read_cnt = ::pread(
+                            handle_->fd, reinterpret_cast<char*>(buf) + buf_offset, block_read_size, file_offset);
+                    }
+                    fmt::print("      block_read_size: {}, file_offset: {}, read_cnt: {}\n", block_read_size,
+                               file_offset, read_cnt);
                     total_read_cnt += read_cnt;
                 }
                 else
@@ -550,12 +571,25 @@ ssize_t CuFileDriver::pread(void* buf, size_t count, off_t file_offset, off_t bu
                             break;
                         }
 
-                        read_cnt = ::pread(handle_->fd, cache_buf, bytes_to_copy, read_offset);
-                        CUDA_TRY(cudaMemcpy(input_buf, cache_buf, bytes_to_copy, cudaMemcpyHostToDevice));
-                        if (cuda_status)
                         {
-                            return -1;
+                            cucim::logger::Timer timer("    posix_odirect - pread {:.7f}\n");
+
+                            read_cnt = ::pread(handle_->fd, cache_buf, bytes_to_copy, read_offset);
                         }
+                        fmt::print("      bytes_to_copy: {}, read_offset: {}, read_cnt: {}\n", bytes_to_copy,
+                                   read_offset, read_cnt);
+                        {
+                            cucim::logger::Timer timer("    posix_odirect - cudaMemcpy {:.7f}\n");
+                            CUDA_TRY(cudaMemcpy(input_buf, cache_buf, bytes_to_copy, cudaMemcpyHostToDevice));
+                            if (cuda_status)
+                            {
+                                return -1;
+                            }
+                            cudaEventRecord(static_cast<cudaEvent_t>(cuda_event_));
+                            cudaEventSynchronize(static_cast<cudaEvent_t>(cuda_event_));
+                            cudaStreamSynchronize(0);
+                        }
+                        fmt::print("   --- synchronized\n");
                         read_offset += read_cnt;
                         input_buf += read_cnt;
                         remaining_size -= read_cnt;
@@ -573,24 +607,37 @@ ssize_t CuFileDriver::pread(void* buf, size_t count, off_t file_offset, off_t bu
 
                 // Read the remaining block (size of PAGE_SIZE)
                 ssize_t read_cnt;
-                read_cnt = ::pread(handle_->fd, buf_pos, PAGE_SIZE, block_read_size);
+                {
+                    cucim::logger::Timer timer("    posix_odirect - pread(remaining) {:.7f}\n");
+
+
+                    read_cnt = ::pread(handle_->fd, buf_pos, PAGE_SIZE, block_read_size);
+                }
                 if (read_cnt < 0)
                 {
                     fmt::print(stderr, "Cannot read the remaining file content block! ({})\n", std::strerror(errno));
                     return -1;
                 }
+                fmt::print(
+                    "      PAGE_SIZE: {}, block_read_size: {}, read_cnt: {}\n", PAGE_SIZE, block_read_size, read_cnt);
                 // Copy a buffer to read, from the intermediate remaining block (buf_pos)
                 if (memory_type == cudaMemoryTypeUnregistered)
                 {
-                    memcpy(reinterpret_cast<uint8_t*>(buf) + buf_offset + block_read_size, buf_pos, remaining);
+                    {
+                        cucim::logger::Timer timer("    posix_odirect - memcpy(remaining) {:.7f}\n");
+                        memcpy(reinterpret_cast<uint8_t*>(buf) + buf_offset + block_read_size, buf_pos, remaining);
+                    }
                 }
                 else
                 {
-                    CUDA_TRY(cudaMemcpy(reinterpret_cast<uint8_t*>(buf) + buf_offset + block_read_size, buf_pos,
-                                        remaining, cudaMemcpyHostToDevice));
-                    if (cuda_status)
                     {
-                        return -1;
+                        cucim::logger::Timer timer("    posix_odirect - cudaMemcpy(remaining) {:.7f}\n");
+                        CUDA_TRY(cudaMemcpy(reinterpret_cast<uint8_t*>(buf) + buf_offset + block_read_size, buf_pos,
+                                            remaining, cudaMemcpyHostToDevice));
+                        if (cuda_status)
+                        {
+                            return -1;
+                        }
                     }
                 }
 
@@ -744,12 +791,19 @@ ssize_t CuFileDriver::pread(void* buf, size_t count, off_t file_offset, off_t bu
     {
         (void*)s_cufile_cache.device_cache(); // Lazy initialization
 
-        ssize_t read_cnt = cuFileRead(handle_->cufile, reinterpret_cast<char*>(buf) + buf_offset, count, file_offset, 0);
-        total_read_cnt += read_cnt;
-        if (read_cnt < 0)
+
         {
-            fmt::print(stderr, "Failed to read file with cuFileRead().\n");
-            return -1;
+            cucim::logger::Timer timer("    GDS {:.7f}\n");
+            ssize_t read_cnt =
+                cuFileRead(handle_->cufile, reinterpret_cast<char*>(buf) + buf_offset, count, file_offset, 0);
+            fmt::print("      buf_offset: {}, count: {}, file_offset: {}, read_cnt:{}\n", buf_offset, count,
+                       file_offset, read_cnt);
+            total_read_cnt += read_cnt;
+            if (read_cnt < 0)
+            {
+                fmt::print(stderr, "Failed to read file with cuFileRead().\n");
+                return -1;
+            }
         }
     }
 
@@ -1148,6 +1202,8 @@ bool CuFileDriver::close()
                            std::strerror(errno));
             }
         }
+        ::close(handle_->fd);
+        handle_->fd = -1;
         handle_ = nullptr;
     }
     file_path_.clear();
@@ -1164,6 +1220,7 @@ filesystem::Path CuFileDriver::path() const
 CuFileDriver::~CuFileDriver()
 {
     close();
+    cudaEventDestroy(static_cast<cudaEvent_t>(cuda_event_));
 }
 
 } // namespace cucim::filesystem
