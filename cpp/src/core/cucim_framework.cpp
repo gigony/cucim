@@ -442,7 +442,7 @@ void CuCIMFramework::unload_all_plugins()
 {
     ScopedLock g(mutex_);
 
-    CUCIM_LOG_VERBOSE("Unload all plugins.");
+    CUCIM_LOG_DEBUG("Unload all plugins.");
 
     // Get all plugins from the registry and copy the set (because we are updating registry it inside of loops below)
     std::unordered_set<size_t> plugins = plugin_manager_.get_plugin_indices();

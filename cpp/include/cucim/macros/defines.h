@@ -60,7 +60,7 @@
 
 #include <cstdio>
 #include <cinttypes>
-#define CUCIM_LOG_VERBOSE(fmt, ...) ::fprintf(stderr, fmt "\n", ##__VA_ARGS__)
+#define CUCIM_LOG_DEBUG(fmt, ...) ::fprintf(stderr, fmt "\n", ##__VA_ARGS__)
 #define CUCIM_LOG_INFO(fmt, ...) ::fprintf(stderr, fmt "\n", ##__VA_ARGS__)
 #define CUCIM_LOG_WARN(fmt, ...) ::fprintf(stderr, fmt "\n", ##__VA_ARGS__)
 #define CUCIM_LOG_ERROR(fmt, ...) ::fprintf(stderr, fmt "\n", ##__VA_ARGS__)

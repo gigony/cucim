@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,26 +13,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#ifndef PYCUCIM_LOGGER_LOGGER_PYDOC_H
+#define PYCUCIM_LOGGER_LOGGER_PYDOC_H
 
-#ifndef PYCUCIM_PROFILER_INIT_H
-#define PYCUCIM_PROFILER_INIT_H
+#include "../macros.h"
 
-#include <pybind11/pybind11.h>
-
-namespace py = pybind11;
-
-namespace cucim::profiler
+namespace cucim::logger::doc::Logger
 {
 
-// Forward declaration
-class Profiler;
+PYDOC(config, R"doc(
+Returns the dictionary of configuration.
+)doc")
 
-void init_profiler(py::module& m);
+// void level(LogLevel value);
+// LogLevel level() const;
+PYDOC(level, R"doc(
+Log level
+)doc")
 
-bool py_trace(Profiler& profiler, py::object value);
+} // namespace cucim::logger::doc::Logger
 
-py::dict py_config(Profiler& profiler);
-
-} // namespace cucim::profiler
-
-#endif // PYCUCIM_PROFILER_INIT_H
+#endif // PYCUCIM_LOGGER_LOGGER_PYDOC_H

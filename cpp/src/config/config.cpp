@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,6 +67,11 @@ cucim::plugin::PluginConfig& Config::plugin()
 cucim::profiler::ProfilerConfig& Config::profiler()
 {
     return profiler_;
+}
+
+cucim::logger::LoggerConfig& Config::logger()
+{
+    return logger_;
 }
 
 std::string Config::shm_name() const
@@ -145,6 +150,12 @@ bool Config::parse_config(std::string& path)
         {
             profiler_.load_config(&profiler);
         }
+
+        json logger = obj["logger"];
+        if (logger.is_object())
+        {
+            logger_.load_config(&logger);
+        }
     }
     catch (const json::parse_error& e)
     {
@@ -176,6 +187,14 @@ void Config::override_from_envs()
             {
                 profiler_.trace = false;
             }
+        }
+    }
+    if (const char* env_p = std::getenv("CUCIM_LOG_LEVEL"))
+    {
+        const std::string_view level(env_p);
+        if (!level.empty())
+        {
+            logger_.level = cucim::logger::get_level_from_name(level);
         }
     }
 }

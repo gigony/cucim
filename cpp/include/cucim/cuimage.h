@@ -24,6 +24,7 @@
 #include "cucim/io/device.h"
 #include "cucim/io/format/image_format.h"
 #include "cucim/loader/thread_batch_data_loader.h"
+#include "cucim/logger/logger.h"
 #include "cucim/memory/dlpack.h"
 #include "cucim/plugin/image_format.h"
 #include "cucim/profiler/profiler.h"
@@ -127,6 +128,10 @@ public:
     static std::shared_ptr<cache::ImageCache> cache();
     static std::shared_ptr<cache::ImageCache> cache(cache::ImageCacheConfig& config);
     static bool is_trace_enabled();
+    static std::shared_ptr<logger::Logger> logger();
+    static std::shared_ptr<logger::Logger> logger(logger::LoggerConfig& config);
+    static logger::LogLevel log_level();
+
 
     filesystem::Path path() const;
 
@@ -220,6 +225,7 @@ private:
     static std::shared_ptr<profiler::Profiler> profiler_;
     static std::unique_ptr<cache::ImageCacheManager> cache_manager_;
     static std::unique_ptr<cucim::plugin::ImageFormat> image_format_plugins_;
+    static std::shared_ptr<logger::Logger> logger_;
 
     mutable Mutex mutex_;
     cucim::io::format::ImageFormatDesc* image_format_ = nullptr;

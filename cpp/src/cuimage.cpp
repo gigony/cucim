@@ -139,6 +139,7 @@ std::unique_ptr<config::Config> CuImage::config_ = std::make_unique<config::Conf
 std::shared_ptr<profiler::Profiler> CuImage::profiler_ = std::make_shared<profiler::Profiler>(config_->profiler());
 std::unique_ptr<cache::ImageCacheManager> CuImage::cache_manager_ = std::make_unique<cache::ImageCacheManager>();
 std::unique_ptr<plugin::ImageFormat> CuImage::image_format_plugins_ = std::make_unique<plugin::ImageFormat>();
+std::shared_ptr<logger::Logger> CuImage::logger_ = std::make_shared<logger::Logger>(config_->logger());
 
 
 CuImage::CuImage(const filesystem::Path& path)
@@ -351,6 +352,22 @@ std::shared_ptr<cache::ImageCache> CuImage::cache(cache::ImageCacheConfig& confi
 bool CuImage::is_trace_enabled()
 {
     return profiler_->trace();
+}
+
+std::shared_ptr<logger::Logger> CuImage::logger()
+{
+    return logger_;
+}
+
+std::shared_ptr<logger::Logger> CuImage::logger(logger::LoggerConfig& config)
+{
+    logger_->level(config.level);
+    return logger_;
+}
+
+logger::LogLevel CuImage::log_level()
+{
+    return logger_->level();
 }
 
 filesystem::Path CuImage::path() const

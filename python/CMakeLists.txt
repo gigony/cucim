@@ -160,6 +160,9 @@ pybind11_add_module(cucim
         pybind11/filesystem/cufile_py.h
         pybind11/filesystem/cufile_pydoc.h
         pybind11/filesystem/cufile_py.cpp
+        pybind11/logger/logger_py.h
+        pybind11/logger/logger_pydoc.h
+        pybind11/logger/logger_py.cpp
         pybind11/memory/memory_py.h
         pybind11/memory/memory_pydoc.h
         pybind11/memory/memory_py.cpp

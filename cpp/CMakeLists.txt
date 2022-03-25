@@ -63,6 +63,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         include/cucim/loader/thread_batch_data_loader.h
         include/cucim/loader/tile_info.h
         include/cucim/logger/logger.h
+        include/cucim/logger/logger_config.h
         include/cucim/logger/timer.h
         include/cucim/macros/defines.h
         include/cucim/memory/dlpack.h
@@ -106,6 +107,7 @@ add_library(${CUCIM_PACKAGE_NAME}
         src/loader/batch_data_processor.cpp
         src/loader/thread_batch_data_loader.cpp
         src/logger/logger.cpp
+        src/logger/logger_config.cpp
         src/logger/timer.cpp
         src/memory/memory_manager.cpp
         src/plugin/image_format.cpp

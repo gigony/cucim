@@ -79,6 +79,16 @@ PYDOC(is_trace_enabled, R"doc(
 Return whether if the tracing is enabled or not.
 )doc")
 
+// std::shared_ptr<profiler::Logger> CuImage::logger()
+PYDOC(logger, R"doc(
+Get logger object.
+)doc")
+
+// logger::LogLevel CuImage::log_level()
+PYDOC(log_level, R"doc(
+Return log level.
+)doc")
+
 // filesystem::Path path() const;
 PYDOC(path, R"doc(
 Underlying file path for this object.

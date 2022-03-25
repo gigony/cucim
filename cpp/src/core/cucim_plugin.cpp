@@ -85,7 +85,7 @@ bool Plugin::init_plugin_fn(T& handle, const char* name, bool optional) const
 
 bool Plugin::prepare_file_to_load(std::string& out_lib_file_path, int version)
 {
-    (void) version;
+    (void)version;
 
     //    if (!is_reloadable_)
     //    {
@@ -269,7 +269,7 @@ bool Plugin::try_load(int version, bool full)
     {
         return is_loaded_;
     }
-    // CUCIM_LOG_VERBOSE("[Plugin: %s] %s", name_cstr(), full ? "Loading..." : "Preloading...");
+    // CUCIM_LOG_DEBUG("[Plugin: %s] %s", name_cstr(), full ? "Loading..." : "Preloading...");
 
     std::string lib_file;
     if (!prepare_file_to_load(lib_file, version))
@@ -277,7 +277,7 @@ bool Plugin::try_load(int version, bool full)
         return false;
     }
     // Load library
-    CUCIM_LOG_VERBOSE("[Plugin: %s] Loading the dynamic library from: %s", name_cstr(), lib_file.c_str());
+    CUCIM_LOG_DEBUG("[Plugin: %s] Loading the dynamic library from: %s", name_cstr(), lib_file.c_str());
     library_handle_ = dynlib::load_library(lib_file.c_str());
 
     if (!library_handle_)
@@ -315,7 +315,7 @@ bool Plugin::try_load(int version, bool full)
     }
 
     // Load was successful
-    // CUCIM_LOG_VERBOSE("[Plugin: %s] %s successfully. Version: %d", name_cstr(), full ? "loaded" : "preloaded",
+    // CUCIM_LOG_DEBUG("[Plugin: %s] %s successfully. Version: %d", name_cstr(), full ? "loaded" : "preloaded",
     // version);
     is_loaded_ = true;
     return is_loaded_;
@@ -339,7 +339,7 @@ void Plugin::unload()
         dynlib::unload_library(library_handle_);
         library_handle_ = nullptr;
         is_loaded_ = false;
-        CUCIM_LOG_VERBOSE("[Plugin: %s] Unloaded.", name_cstr());
+        CUCIM_LOG_DEBUG("[Plugin: %s] Unloaded.", name_cstr());
     }
 }
 

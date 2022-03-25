@@ -28,6 +28,7 @@
 #include "cache/cache_py.h"
 #include "filesystem/filesystem_py.h"
 #include "io/io_py.h"
+#include "logger/logger_py.h"
 #include "profiler/profiler_py.h"
 
 using namespace pybind11::literals;
@@ -74,6 +75,10 @@ PYBIND11_MODULE(_cucim, m)
     auto m_profiler = m.def_submodule("profiler");
     profiler::init_profiler(m_profiler);
 
+    // Submodule: logger
+    auto m_logger = m.def_submodule("logger");
+    logger::init_logger(m_logger);
+
     // Data structures
     py::enum_<DLDataTypeCode>(m, "DLDataTypeCode") //
         .value("DLInt", kDLInt) //
@@ -108,6 +113,9 @@ PYBIND11_MODULE(_cucim, m)
                     py::arg("type") = py::none()) //
         .def_static("profiler", &py_profiler, doc::CuImage::doc_profiler, py::call_guard<py::gil_scoped_release>()) //
         .def_property_readonly_static("is_trace_enabled", &py_is_trace_enabled, doc::CuImage::doc_is_trace_enabled,
+                                      py::call_guard<py::gil_scoped_release>()) //);
+        .def_static("logger", &py_logger, doc::CuImage::doc_logger, py::call_guard<py::gil_scoped_release>()) //
+        .def_property_readonly_static("log_level", &py_log_level, doc::CuImage::doc_log_level,
                                       py::call_guard<py::gil_scoped_release>()) //);
         // Do not release GIL
         .def_static("_set_array_interface", &_set_array_interface, doc::CuImage::doc__set_array_interface, //
@@ -325,6 +333,31 @@ std::shared_ptr<cucim::profiler::Profiler> py_profiler(const py::kwargs& kwargs)
 bool py_is_trace_enabled(py::object /* self */)
 {
     return CuImage::is_trace_enabled();
+}
+
+std::shared_ptr<cucim::logger::Logger> py_logger(const py::kwargs& kwargs)
+{
+    if (kwargs.empty())
+    {
+        return CuImage::logger();
+    }
+    else
+    {
+        // Copy default logger config to local
+        cucim::logger::LoggerConfig config = cucim::CuImage::get_config()->logger();
+
+        if (kwargs.contains("level"))
+        {
+            std::string level_str = std::string(py::cast<py::str>(kwargs["level"]));
+            config.level = cucim::logger::get_level_from_name(level_str);
+        }
+        return CuImage::logger(config);
+    }
+}
+
+logger::LogLevel py_log_level(py::object /* self */)
+{
+    return CuImage::log_level();
 }
 
 json py_metadata(const CuImage& cuimg)

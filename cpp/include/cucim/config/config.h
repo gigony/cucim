@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include "cucim/cache/image_cache_config.h"
 #include "cucim/plugin/plugin_config.h"
 #include "cucim/profiler/profiler_config.h"
+#include "cucim/logger/logger_config.h"
 
 #include <string>
 #include <string_view>
@@ -42,6 +43,7 @@ public:
     cucim::cache::ImageCacheConfig& cache();
     cucim::plugin::PluginConfig& plugin();
     cucim::profiler::ProfilerConfig& profiler();
+    cucim::logger::LoggerConfig& logger();
 
     std::string shm_name() const;
     pid_t pid() const;
@@ -60,6 +62,7 @@ private:
     cucim::cache::ImageCacheConfig cache_;
     cucim::plugin::PluginConfig plugin_;
     cucim::profiler::ProfilerConfig profiler_;
+    cucim::logger::LoggerConfig logger_;
 };
 
 } // namespace cucim::config

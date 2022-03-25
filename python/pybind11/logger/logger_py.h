@@ -1,6 +1,5 @@
 /*
- * Apache License, Version 2.0
- * Copyright 2022 NVIDIA Corporation
+ * Copyright (c) 2022, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,38 +14,26 @@
  * limitations under the License.
  */
 
-#include "cucim/logger/logger.h"
+#ifndef PYCUCIM_LOGGER_INIT_H
+#define PYCUCIM_LOGGER_INIT_H
 
-#include "cucim/cuimage.h"
+#include <pybind11/pybind11.h>
+
+namespace py = pybind11;
 
 namespace cucim::logger
 {
 
-Logger::Logger(LoggerConfig& config) : config_(config){};
+// Forward declaration
+class Logger;
+enum class LogLevel : uint8_t;
 
-LoggerConfig& Logger::config()
-{
-    return config_;
-}
+void init_logger(py::module& m);
 
-LoggerConfig Logger::get_config() const
-{
-    return config_;
-}
+LogLevel py_level(Logger& logger, py::object value);
 
-void Logger::level(LogLevel value)
-{
-    config_.level = value;
-}
-
-void Logger::level(std::string& value)
-{
-    config_.level = get_level_from_name(value);
-}
-
-LogLevel Logger::level() const
-{
-    return config_.level;
-}
+py::dict py_config(Logger& logger);
 
 } // namespace cucim::logger
+
+#endif // PYCUCIM_LOGGER_INIT_H
