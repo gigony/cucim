@@ -1,11 +1,16 @@
 
 # Changelog (See [Release Notes](https://github.com/rapidsai/cucim/wiki/Release-Notes))
 
+## [22.02.04](https://github.com/rapidsai/cucim/wiki/release_notes_v22.04.00)
+
+- [Bug] Fix ImportError from vendored code ([#252](https://github.com/rapidsai/cucim/pull/252)) [@grlee77](https://github.com/grlee77)
+- [Bug] Fix wrong dimension in metadata ([#248](https://github.com/rapidsai/cucim/pull/248)) [@gigony](https://github.com/gigony)
+
 ## [22.02.01](https://github.com/rapidsai/cucim/wiki/release_notes_v22.02.01)
 
+- [New/Breaking] Apply fixes to skimage.transform scheduled for scikit-image 0.19.2 ([#208](https://github.com/rapidsai/cucim/pull/208)) [@grlee7](https://github.com/grlee7)
 - [Bug] Check nullptr of handler in CuFileDriver::close() ([#229](https://github.com/rapidsai/cucim/pull/229)) [@gigony](https://github.com/gigony)
 - [Bug] Handle file descriptor ownership and update documents for GDS ([#234](https://github.com/rapidsai/cucim/pull/234)) [@gigony](https://github.com/gigony)
-- [Bug] Apply fixes to skimage.transform scheduled for scikit-image 0.19.2 ([#208](https://github.com/rapidsai/cucim/pull/208)) [@grlee7](https://github.com/grlee7)
 - [New] Randomization of transforms per image per batch ([#231](https://github.com/rapidsai/cucim/pull/231)) [@shekhardw](https://github.com/shekhardw)
 - [New] Expose data type of CuImage object for interoperability with NumPy ([#246](https://github.com/rapidsai/cucim/pull/246)) [@gigony](https://github.com/gigony)
 - [Update] Remove verbose plugin messages temporarily. Address [#109](https://github.com/rapidsai/cucim/issues/109) ([BUG] - Info messages appearing as warnings in Jupyter notebooks)
